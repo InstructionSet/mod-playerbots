@@ -1,0 +1,24 @@
+/*
+ * Copyright (C) 2016+ AzerothCore <www.azerothcore.org>, released under GNU AGPL v3 license, you may redistribute it
+ * and/or modify it under version 3 of the License, or (at your option), any later version.
+ */
+
+#ifndef _PLAYERBOT_BAGMANAGEMENTSTRATEGY_H
+#define _PLAYERBOT_BAGMANAGEMENTSTRATEGY_H
+
+#include "NonCombatStrategy.h"
+
+class PlayerbotAI;
+
+class BagManagementStrategy : public NonCombatStrategy
+{
+public:
+    BagManagementStrategy(PlayerbotAI* botAI) : NonCombatStrategy(botAI) {}
+
+    std::string const getName() override { return "bag management"; }
+    uint32 GetType() const override { return STRATEGY_TYPE_NONCOMBAT; }
+    NextAction** getDefaultActions() override;
+    void InitTriggers(std::vector<TriggerNode*>& triggers) override;
+};
+
+#endif

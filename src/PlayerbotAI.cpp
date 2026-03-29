@@ -31,6 +31,7 @@
 #include "LogLevelAction.h"
 #include "LootObjectStack.h"
 #include "MapMgr.h"
+#include "Metric.h"
 #include "MotionMaster.h"
 #include "MoveSpline.h"
 #include "MoveSplineInit.h"
@@ -412,6 +413,7 @@ void PlayerbotAI::UpdateAIInternal([[maybe_unused]] uint32 elapsed, bool minimal
     if (bot->IsBeingTeleported() || !bot->IsInWorld())
         return;
 
+    auto fullTickStart = std::chrono::steady_clock::now();
     std::string const mapString = WorldPosition(bot).isOverworld() ? std::to_string(bot->GetMapId()) : "I";
     PerformanceMonitorOperation* pmo =
         sPerformanceMonitor->start(PERF_MON_TOTAL, "PlayerbotAI::UpdateAIInternal " + mapString);
@@ -480,6 +482,10 @@ void PlayerbotAI::UpdateAIInternal([[maybe_unused]] uint32 elapsed, bool minimal
     masterOutgoingPacketHandlers.Handle(helper);
 
     DoNextAction(minimal);
+
+    METRIC_VALUE("playerbots_full_tick_count", uint64(1));
+    METRIC_VALUE("playerbots_full_tick_time_us",
+        uint64(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - fullTickStart).count()));
 
     if (pmo)
         pmo->finish();

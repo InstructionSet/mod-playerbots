@@ -7,6 +7,7 @@
 
 #include "Action.h"
 #include "Event.h"
+#include "Metric.h"
 #include "PerformanceMonitor.h"
 #include "Playerbots.h"
 #include "Queue.h"
@@ -139,6 +140,9 @@ void Engine::Init()
 
 bool Engine::DoNextAction(Unit* unit, uint32 depth, bool minimal)
 {
+    auto dispatchStart = std::chrono::steady_clock::now();
+    METRIC_TIMER("playerbots_dispatch_time", METRIC_TAG("scope", "DoNextAction"));
+
     LogAction("--- AI Tick ---");
 
     if (sPlayerbotAIConfig->logValuesPerTick)
@@ -154,6 +158,19 @@ bool Engine::DoNextAction(Unit* unit, uint32 depth, bool minimal)
 
     uint32 iterations = 0;
     uint32 iterationsPerTick = queue.Size() * (minimal ? 2 : sPlayerbotAIConfig->iterationsPerTick);
+    uint32 queueDepth = queue.Size();
+
+    uint32 actionAttempts = 0;
+    uint32 actionSuccesses = 0;
+    uint32 actionFailures = 0;
+    uint32 actionImpossible = 0;
+    uint32 actionUseless = 0;
+    uint32 actionUnknown = 0;
+    uint32 multiplierRejected = 0;
+    uint32 prerequisitesTriggered = 0;
+
+    METRIC_VALUE("playerbots_dispatch_queue_depth", uint64(queueDepth), METRIC_TAG("scope", "pre_loop"));
+    METRIC_VALUE("playerbots_dispatch_iterations_target", uint64(iterationsPerTick));
 
     while (++iterations <= iterationsPerTick)
     {
@@ -173,10 +190,13 @@ bool Engine::DoNextAction(Unit* unit, uint32 depth, bool minimal)
 
         if (!action)
         {
+            ++actionUnknown;
             LogAction("A:%s - UNKNOWN", actionNode->getName().c_str());
         }
         else if (action->isUseful())
         {
+            ++actionAttempts;
+
             // Apply multipliers early to avoid unnecessary iterations
             for (Multiplier* multiplier : multipliers)
             {
@@ -185,6 +205,7 @@ bool Engine::DoNextAction(Unit* unit, uint32 depth, bool minimal)
 
                 if (relevance <= 0)
                 {
+                    ++multiplierRejected;
                     LogAction("Multiplier %s made action %s useless", multiplier->getName().c_str(), action->getName().c_str());
                     break;
                 }
@@ -198,6 +219,7 @@ bool Engine::DoNextAction(Unit* unit, uint32 depth, bool minimal)
 
                     if (MultiplyAndPush(actionNode->getPrerequisites(), relevance + 0.002f, false, event, "prereq"))
                     {
+                        ++prerequisitesTriggered;
                         PushAgain(actionNode, relevance + 0.001f, event);
                         continue;
                     }
@@ -210,6 +232,7 @@ bool Engine::DoNextAction(Unit* unit, uint32 depth, bool minimal)
 
                 if (actionExecuted)
                 {
+                    ++actionSuccesses;
                     LogAction("A:%s - OK", action->getName().c_str());
                     MultiplyAndPush(actionNode->getContinuers(), relevance, false, event, "cont");
                     lastRelevance = relevance;
@@ -218,18 +241,21 @@ bool Engine::DoNextAction(Unit* unit, uint32 depth, bool minimal)
                 }
                 else
                 {
+                    ++actionFailures;
                     LogAction("A:%s - FAILED", action->getName().c_str());
                     MultiplyAndPush(actionNode->getAlternatives(), relevance + 0.003f, false, event, "alt");
                 }
             }
             else
             {
+                ++actionImpossible;
                 LogAction("A:%s - IMPOSSIBLE", action->getName().c_str());
                 MultiplyAndPush(actionNode->getAlternatives(), relevance + 0.003f, false, event, "alt");
             }
         }
         else
         {
+            ++actionUseless;
             LogAction("A:%s - USELESS", action->getName().c_str());
             lastRelevance = relevance;
         }
@@ -244,6 +270,20 @@ bool Engine::DoNextAction(Unit* unit, uint32 depth, bool minimal)
 
     if (!actionExecuted)
         LogAction("no actions executed");
+
+    METRIC_VALUE("playerbots_dispatch_iterations", uint64(iterations));
+    METRIC_VALUE("playerbots_dispatch_actions_attempted", uint64(actionAttempts));
+    METRIC_VALUE("playerbots_dispatch_actions_success", uint64(actionSuccesses));
+    METRIC_VALUE("playerbots_dispatch_actions_failed", uint64(actionFailures));
+    METRIC_VALUE("playerbots_dispatch_actions_impossible", uint64(actionImpossible));
+    METRIC_VALUE("playerbots_dispatch_actions_useless", uint64(actionUseless));
+    METRIC_VALUE("playerbots_dispatch_actions_unknown", uint64(actionUnknown));
+    METRIC_VALUE("playerbots_dispatch_multiplier_rejected", uint64(multiplierRejected));
+    METRIC_VALUE("playerbots_dispatch_prerequisites_triggered", uint64(prerequisitesTriggered));
+    METRIC_VALUE(
+        "playerbots_dispatch_time_us",
+        uint64(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - dispatchStart).count()),
+        METRIC_TAG("scope", "DoNextAction"));
 
     queue.RemoveExpired();
 
@@ -562,6 +602,12 @@ Action* Engine::InitializeAction(ActionNode* actionNode)
 bool Engine::ListenAndExecute(Action* action, Event event)
 {
     bool actionExecuted = false;
+    std::string eventSource = event.GetSource().empty() ? "none" : event.GetSource();
+    auto actionStart = std::chrono::steady_clock::now();
+
+    METRIC_TIMER("playerbots_action_time",
+        METRIC_TAG("action_name", action->getName()),
+        METRIC_TAG("event_source", eventSource));
 
     if (actionExecutionListeners.Before(action, event))
     {
@@ -588,6 +634,16 @@ bool Engine::ListenAndExecute(Action* action, Event event)
     }
 
     actionExecuted = actionExecutionListeners.OverrideResult(action, actionExecuted, event);
+    METRIC_VALUE("playerbots_action_time_us",
+        uint64(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - actionStart).count()),
+        METRIC_TAG("action_name", action->getName()),
+        METRIC_TAG("event_source", eventSource));
+    METRIC_VALUE("playerbots_action_result",
+        uint64(1),
+        METRIC_TAG("action_name", action->getName()),
+        METRIC_TAG("event_source", eventSource),
+        METRIC_TAG("result", actionExecuted ? "ok" : "failed"));
+
     actionExecutionListeners.After(action, actionExecuted, event);
     return actionExecuted;
 }

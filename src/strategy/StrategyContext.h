@@ -7,6 +7,7 @@
 #define _PLAYERBOT_STRATEGYCONTEXT_H
 
 #include "AttackEnemyPlayersStrategy.h"
+#include "BagManagementStrategy.h"
 #include "BattlegroundStrategy.h"
 #include "CastTimeStrategy.h"
 #include "ChatCommandHandlerStrategy.h"
@@ -111,6 +112,7 @@ public:
         creators["debug spell"] = &StrategyContext::debug_spell;
         creators["debug quest"] = &StrategyContext::debug_quest;
         creators["maintenance"] = &StrategyContext::maintenance;
+        creators["bag management"] = &StrategyContext::bag_management;
         creators["group"] = &StrategyContext::group;
         creators["guild"] = &StrategyContext::guild;
         creators["grind"] = &StrategyContext::grind;
@@ -179,6 +181,7 @@ private:
     static Strategy* debug_spell(PlayerbotAI* botAI) { return new DebugSpellStrategy(botAI); }
     static Strategy* debug_quest(PlayerbotAI* botAI) { return new DebugQuestStrategy(botAI); }
     static Strategy* maintenance(PlayerbotAI* botAI) { return new MaintenanceStrategy(botAI); }
+    static Strategy* bag_management(PlayerbotAI* botAI) { return new BagManagementStrategy(botAI); }
     static Strategy* group(PlayerbotAI* botAI) { return new GroupStrategy(botAI); }
     static Strategy* guild (PlayerbotAI* botAI) { return new GuildStrategy(botAI); }
     static Strategy* grind(PlayerbotAI* botAI) { return new GrindingStrategy(botAI); }

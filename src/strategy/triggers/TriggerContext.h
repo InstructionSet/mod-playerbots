@@ -6,6 +6,7 @@
 #ifndef _PLAYERBOT_TRIGGERCONTEXT_H
 #define _PLAYERBOT_TRIGGERCONTEXT_H
 
+#include "BagManagementTriggers.h"
 #include "CureTriggers.h"
 #include "GenericTriggers.h"
 #include "GuildTriggers.h"
@@ -228,6 +229,8 @@ public:
         creators["travel flight status"] = &TriggerContext::travel_flight_status;
         creators["can self resurrect"] = &TriggerContext::can_self_resurrect;
         creators["new pet"] = &TriggerContext::new_pet;
+        creators["bag can sell gray"] = &TriggerContext::bag_can_sell_gray;
+        creators["bag move to vendor"] = &TriggerContext::bag_move_to_vendor;
     }
 
 private:
@@ -269,6 +272,8 @@ private:
         return new AoeInGroupTrigger(ai, "medium group heal setting", "medium");
     }
     static Trigger* target_changed(PlayerbotAI* botAI) { return new TargetChangedTrigger(botAI); }
+    static Trigger* bag_can_sell_gray(PlayerbotAI* botAI) { return new BagCanSellGrayTrigger(botAI); }
+    static Trigger* bag_move_to_vendor(PlayerbotAI* botAI) { return new BagMoveToVendorTrigger(botAI); }
     static Trigger* swimming(PlayerbotAI* botAI) { return new IsSwimmingTrigger(botAI); }
     static Trigger* no_possible_targets(PlayerbotAI* botAI) { return new NoPossibleTargetsTrigger(botAI); }
     static Trigger* possible_adds(PlayerbotAI* botAI) { return new PossibleAddsTrigger(botAI); }

@@ -28,6 +28,14 @@ public:
         creators["los"] = &ChatTriggerContext::los;
         creators["rpg status"] = &ChatTriggerContext::rpg_status;
         creators["rpg do quest"] = &ChatTriggerContext::rpg_do_quest;
+        creators["rpg set"] = &ChatTriggerContext::rpg_set;
+        creators["rpg help"] = &ChatTriggerContext::rpg_help;
+        creators["rpg reset"] = &ChatTriggerContext::rpg_reset;
+        creators["new rpg status"] = &ChatTriggerContext::new_rpg_status;
+        creators["new rpg do quest"] = &ChatTriggerContext::new_rpg_do_quest;
+        creators["new rpg set"] = &ChatTriggerContext::new_rpg_set;
+        creators["new rpg help"] = &ChatTriggerContext::new_rpg_help;
+        creators["new rpg reset"] = &ChatTriggerContext::new_rpg_reset;
         creators["aura"] = &ChatTriggerContext::aura;
         creators["drop"] = &ChatTriggerContext::drop;
         creators["share"] = &ChatTriggerContext::share;
@@ -229,6 +237,14 @@ private:
     static Trigger* los(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "los"); }
     static Trigger* rpg_status(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "rpg status"); }
     static Trigger* rpg_do_quest(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "rpg do quest"); }
+    static Trigger* rpg_set(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "rpg set"); }
+    static Trigger* rpg_help(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "rpg help"); }
+    static Trigger* rpg_reset(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "rpg reset"); }
+    static Trigger* new_rpg_status(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "new rpg status"); }
+    static Trigger* new_rpg_do_quest(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "new rpg do quest"); }
+    static Trigger* new_rpg_set(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "new rpg set"); }
+    static Trigger* new_rpg_help(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "new rpg help"); }
+    static Trigger* new_rpg_reset(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "new rpg reset"); }
     static Trigger* aura(PlayerbotAI* ai) { return new ChatCommandTrigger(ai, "aura"); }
     static Trigger* loot_all(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "add all loot"); }
     static Trigger* release(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "release"); }

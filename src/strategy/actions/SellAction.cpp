@@ -134,3 +134,14 @@ void SellAction::Sell(Item* item)
         break;
     }
 }
+
+bool SellGrayAction::Execute(Event event)
+{
+    (void)event;
+    return SellAction::Execute(Event("bag management", "gray"));
+}
+
+bool SellGrayAction::isUseful()
+{
+    return AI_VALUE2(uint32, "item count", "gray") > 0;
+}

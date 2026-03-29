@@ -101,6 +101,14 @@ public:
         creators["los"] = &ChatActionContext::los;
         creators["rpg status"] = &ChatActionContext::rpg_status;
         creators["rpg do quest"] = &ChatActionContext::rpg_do_quest;
+        creators["rpg set"] = &ChatActionContext::rpg_set;
+        creators["rpg help"] = &ChatActionContext::rpg_help;
+        creators["rpg reset"] = &ChatActionContext::rpg_reset;
+        creators["new rpg status"] = &ChatActionContext::new_rpg_status;
+        creators["new rpg do quest"] = &ChatActionContext::new_rpg_do_quest;
+        creators["new rpg set"] = &ChatActionContext::new_rpg_set;
+        creators["new rpg help"] = &ChatActionContext::new_rpg_help;
+        creators["new rpg reset"] = &ChatActionContext::new_rpg_reset;
         creators["aura"] = &ChatActionContext::aura;
         creators["drop"] = &ChatActionContext::drop;
         creators["clean quest log"] = &ChatActionContext::clean_quest_log;
@@ -284,6 +292,14 @@ private:
     static Action* los(PlayerbotAI* botAI) { return new TellLosAction(botAI); }
     static Action* rpg_status(PlayerbotAI* botAI) { return new TellRpgStatusAction(botAI); }
     static Action* rpg_do_quest(PlayerbotAI* botAI) { return new StartRpgDoQuestAction(botAI); }
+    static Action* rpg_set(PlayerbotAI* botAI) { return new SetRpgStatusAction(botAI); }
+    static Action* rpg_help(PlayerbotAI* botAI) { return new HelpRpgStatusAction(botAI); }
+    static Action* rpg_reset(PlayerbotAI* botAI) { return new ResetRpgStatusAction(botAI); }
+    static Action* new_rpg_status(PlayerbotAI* botAI) { return new TellRpgStatusAction(botAI); }
+    static Action* new_rpg_do_quest(PlayerbotAI* botAI) { return new StartRpgDoQuestAction(botAI); }
+    static Action* new_rpg_set(PlayerbotAI* botAI) { return new SetRpgStatusAction(botAI); }
+    static Action* new_rpg_help(PlayerbotAI* botAI) { return new HelpRpgStatusAction(botAI); }
+    static Action* new_rpg_reset(PlayerbotAI* botAI) { return new ResetRpgStatusAction(botAI); }
     static Action* aura(PlayerbotAI* ai) { return new TellAuraAction(ai); }
     static Action* ll(PlayerbotAI* botAI) { return new LootStrategyAction(botAI); }
     static Action* ss(PlayerbotAI* botAI) { return new SkipSpellsListAction(botAI); }

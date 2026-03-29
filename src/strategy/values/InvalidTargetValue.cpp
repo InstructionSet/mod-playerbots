@@ -25,5 +25,10 @@ bool InvalidTargetValue::Calculate()
                !AttackersValue::IsValidTarget(target, bot);
     }
 
+    // A missing current target should not be treated as "invalid target";
+    // otherwise combat can repeatedly execute "drop target" and starve other actions.
+    if (qualifier == "current target")
+        return false;
+
     return !target;
 }

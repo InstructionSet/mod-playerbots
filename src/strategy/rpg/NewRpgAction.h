@@ -29,6 +29,30 @@ public:
     bool Execute(Event event) override;
 };
 
+class SetRpgStatusAction : public NewRpgBaseAction
+{
+public:
+    SetRpgStatusAction(PlayerbotAI* botAI) : NewRpgBaseAction(botAI, "rpg set") {}
+
+    bool Execute(Event event) override;
+};
+
+class HelpRpgStatusAction : public Action
+{
+public:
+    HelpRpgStatusAction(PlayerbotAI* botAI) : Action(botAI, "rpg help") {}
+
+    bool Execute(Event event) override;
+};
+
+class ResetRpgStatusAction : public Action
+{
+public:
+    ResetRpgStatusAction(PlayerbotAI* botAI) : Action(botAI, "rpg reset") {}
+
+    bool Execute(Event event) override;
+};
+
 class NewRpgStatusUpdateAction : public NewRpgBaseAction
 {
 public:

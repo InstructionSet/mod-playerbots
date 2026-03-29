@@ -22,4 +22,13 @@ public:
     void Sell(Item* item);
 };
 
+class SellGrayAction : public SellAction
+{
+public:
+    SellGrayAction(PlayerbotAI* botAI) : SellAction(botAI, "sell gray") {}
+
+    bool Execute(Event event) override;
+    bool isUseful() override;
+};
+
 #endif

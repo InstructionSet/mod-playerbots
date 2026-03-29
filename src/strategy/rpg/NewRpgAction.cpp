@@ -3,6 +3,10 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <algorithm>
+#include <cctype>
+#include <limits>
+#include <sstream>
 
 #include "BroadcastHelper.h"
 #include "ChatHelper.h"
@@ -30,6 +34,41 @@
 #include "Timer.h"
 #include "TravelMgr.h"
 #include "World.h"
+
+namespace
+{
+    std::string TrimCopy(std::string value)
+    {
+        auto isSpace = [](unsigned char c) { return std::isspace(c); };
+        value.erase(value.begin(), std::find_if(value.begin(), value.end(), [&](char c) { return !isSpace(c); }));
+        value.erase(std::find_if(value.rbegin(), value.rend(), [&](char c) { return !isSpace(c); }).base(), value.end());
+        return value;
+    }
+
+    std::string NormalizeStatusToken(std::string value)
+    {
+        std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+            if (c == '-' || c == ' ')
+                return '_';
+            return static_cast<char>(std::tolower(c));
+        });
+        return value;
+    }
+
+    bool TryParseUInt32(std::string const& text, uint32& out)
+    {
+        if (text.empty())
+            return false;
+
+        char* endPtr = nullptr;
+        unsigned long parsed = std::strtoul(text.c_str(), &endPtr, 10);
+        if (endPtr == text.c_str() || *endPtr != '\0' || parsed > std::numeric_limits<uint32>::max())
+            return false;
+
+        out = static_cast<uint32>(parsed);
+        return true;
+    }
+}
 
 bool TellRpgStatusAction::Execute(Event event)
 {
@@ -59,6 +98,191 @@ bool StartRpgDoQuestAction::Execute(Event event)
     }
     bot->Whisper("Invalid quest " + text, LANG_UNIVERSAL, owner);
     return false;
+}
+
+bool SetRpgStatusAction::Execute(Event event)
+{
+    Player* owner = event.getOwner();
+    if (!owner)
+        return false;
+
+    std::string text = TrimCopy(event.getParam());
+    if (text.empty())
+    {
+        bot->Whisper("Usage: new rpg set <idle|rest|go_grind|go_camp|wander_random|wander_npc|do_quest|travel_flight>",
+                     LANG_UNIVERSAL, owner);
+        return false;
+    }
+
+    std::istringstream stream(text);
+    std::vector<std::string> tokens;
+    std::string token;
+    while (stream >> token)
+        tokens.push_back(token);
+
+    if (tokens.empty())
+        return false;
+
+    std::string status = NormalizeStatusToken(tokens[0]);
+    size_t index = 1;
+    if (status == "go" && index < tokens.size())
+    {
+        status = NormalizeStatusToken(tokens[0] + "_" + tokens[1]);
+        ++index;
+    }
+    else if (status == "wander" && index < tokens.size())
+    {
+        status = NormalizeStatusToken(tokens[0] + "_" + tokens[1]);
+        ++index;
+    }
+    else if (status == "do" && index < tokens.size())
+    {
+        status = NormalizeStatusToken(tokens[0] + "_" + tokens[1]);
+        ++index;
+    }
+    else if (status == "travel" && index < tokens.size())
+    {
+        status = NormalizeStatusToken(tokens[0] + "_" + tokens[1]);
+        ++index;
+    }
+
+    if (status == "idle")
+    {
+        botAI->rpgInfo.ChangeToIdle();
+        bot->Whisper("New RPG status set to IDLE", LANG_UNIVERSAL, owner);
+        return true;
+    }
+
+    if (status == "rest")
+    {
+        botAI->rpgInfo.ChangeToRest();
+        bot->SetStandState(UNIT_STAND_STATE_SIT);
+        bot->Whisper("New RPG status set to REST", LANG_UNIVERSAL, owner);
+        return true;
+    }
+
+    if (status == "wander_random" || status == "wander")
+    {
+        if (RandomChangeStatus({RPG_WANDER_RANDOM}))
+        {
+            bot->Whisper("New RPG status set to WANDER_RANDOM", LANG_UNIVERSAL, owner);
+            return true;
+        }
+
+        bot->Whisper("Unable to set WANDER_RANDOM right now", LANG_UNIVERSAL, owner);
+        return false;
+    }
+
+    if (status == "wander_npc")
+    {
+        if (RandomChangeStatus({RPG_WANDER_NPC}))
+        {
+            bot->Whisper("New RPG status set to WANDER_NPC", LANG_UNIVERSAL, owner);
+            return true;
+        }
+
+        bot->Whisper("Unable to set WANDER_NPC right now", LANG_UNIVERSAL, owner);
+        return false;
+    }
+
+    if (status == "go_grind" || status == "grind")
+    {
+        if (RandomChangeStatus({RPG_GO_GRIND}))
+        {
+            bot->Whisper("New RPG status set to GO_GRIND", LANG_UNIVERSAL, owner);
+            return true;
+        }
+
+        bot->Whisper("Unable to set GO_GRIND right now", LANG_UNIVERSAL, owner);
+        return false;
+    }
+
+    if (status == "go_camp" || status == "camp")
+    {
+        if (RandomChangeStatus({RPG_GO_CAMP}))
+        {
+            bot->Whisper("New RPG status set to GO_CAMP", LANG_UNIVERSAL, owner);
+            return true;
+        }
+
+        bot->Whisper("Unable to set GO_CAMP right now", LANG_UNIVERSAL, owner);
+        return false;
+    }
+
+    if (status == "do_quest")
+    {
+        if (index < tokens.size())
+        {
+            uint32 questId = 0;
+            if (TryParseUInt32(tokens[index], questId))
+            {
+                const Quest* quest = sObjectMgr->GetQuestTemplate(questId);
+                if (!quest)
+                {
+                    bot->Whisper("Invalid quest id", LANG_UNIVERSAL, owner);
+                    return false;
+                }
+
+                if (bot->GetQuestStatus(questId) == QUEST_STATUS_NONE)
+                {
+                    bot->Whisper("Quest is not in log", LANG_UNIVERSAL, owner);
+                    return false;
+                }
+
+                botAI->rpgInfo.ChangeToDoQuest(questId, quest);
+                bot->Whisper("New RPG status set to DO_QUEST", LANG_UNIVERSAL, owner);
+                return true;
+            }
+        }
+
+        if (RandomChangeStatus({RPG_DO_QUEST}))
+        {
+            bot->Whisper("New RPG status set to DO_QUEST", LANG_UNIVERSAL, owner);
+            return true;
+        }
+
+        bot->Whisper("Unable to set DO_QUEST right now", LANG_UNIVERSAL, owner);
+        return false;
+    }
+
+    if (status == "travel_flight")
+    {
+        if (RandomChangeStatus({RPG_TRAVEL_FLIGHT}))
+        {
+            bot->Whisper("New RPG status set to TRAVEL_FLIGHT", LANG_UNIVERSAL, owner);
+            return true;
+        }
+
+        bot->Whisper("Unable to set TRAVEL_FLIGHT right now", LANG_UNIVERSAL, owner);
+        return false;
+    }
+
+    bot->Whisper("Unknown RPG status. Try: rpg help", LANG_UNIVERSAL, owner);
+    return false;
+}
+
+bool HelpRpgStatusAction::Execute(Event event)
+{
+    Player* owner = event.getOwner();
+    if (!owner)
+        return false;
+
+    bot->Whisper("New RPG commands: new rpg status | new rpg set <status> | new rpg reset", LANG_UNIVERSAL, owner);
+    bot->Whisper("Compatibility aliases: rpg status | rpg set | rpg reset", LANG_UNIVERSAL, owner);
+    bot->Whisper("Statuses: idle, rest, go_grind, go_camp, wander_random, wander_npc, do_quest [questId], travel_flight",
+                 LANG_UNIVERSAL, owner);
+    return true;
+}
+
+bool ResetRpgStatusAction::Execute(Event event)
+{
+    Player* owner = event.getOwner();
+    if (!owner)
+        return false;
+
+    botAI->rpgInfo.ChangeToIdle();
+    bot->Whisper("New RPG status reset to IDLE", LANG_UNIVERSAL, owner);
+    return true;
 }
 
 bool NewRpgStatusUpdateAction::Execute(Event event)
