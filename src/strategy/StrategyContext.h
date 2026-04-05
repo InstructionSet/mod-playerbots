@@ -111,6 +111,8 @@ public:
         creators["debug rpg"] = &StrategyContext::debug_rpg;
         creators["debug spell"] = &StrategyContext::debug_spell;
         creators["debug quest"] = &StrategyContext::debug_quest;
+        creators["debug do quest"] = &StrategyContext::debug_do_quest;
+        creators["debug loot"] = &StrategyContext::debug_loot;
         creators["maintenance"] = &StrategyContext::maintenance;
         creators["bag management"] = &StrategyContext::bag_management;
         creators["group"] = &StrategyContext::group;
@@ -180,6 +182,8 @@ private:
     static Strategy* debug_rpg(PlayerbotAI* botAI) { return new DebugRpgStrategy(botAI); }
     static Strategy* debug_spell(PlayerbotAI* botAI) { return new DebugSpellStrategy(botAI); }
     static Strategy* debug_quest(PlayerbotAI* botAI) { return new DebugQuestStrategy(botAI); }
+    static Strategy* debug_do_quest(PlayerbotAI* botAI) { return new DebugDoQuestStrategy(botAI); }
+    static Strategy* debug_loot(PlayerbotAI* botAI) { return new DebugLootStrategy(botAI); }
     static Strategy* maintenance(PlayerbotAI* botAI) { return new MaintenanceStrategy(botAI); }
     static Strategy* bag_management(PlayerbotAI* botAI) { return new BagManagementStrategy(botAI); }
     static Strategy* group(PlayerbotAI* botAI) { return new GroupStrategy(botAI); }

@@ -4,6 +4,7 @@
  */
 
 #include "LootAction.h"
+#include "LootDebugAction.h"
 
 #include "ChatHelper.h"
 #include "Event.h"
@@ -17,6 +18,55 @@
 #include "ServerFacade.h"
 #include "GuildMgr.h"
 #include "BroadcastHelper.h"
+
+#include <sstream>
+#include <unordered_map>
+
+namespace
+{
+    bool IsLootDebugEnabled(PlayerbotAI* botAI)
+    {
+        return botAI &&
+               (botAI->HasStrategy("debug loot", BOT_STATE_NON_COMBAT) ||
+                botAI->HasStrategy("debug loot", BOT_STATE_COMBAT));
+    }
+}
+
+bool LootDebugStatusAction::Execute(Event /*event*/)
+{
+    if (!IsLootDebugEnabled(botAI))
+        return false;
+
+    LootObject lootTarget = AI_VALUE(LootObject, "loot target");
+    bool canLoot = AI_VALUE(bool, "can loot");
+    bool hasAvailableLoot = AI_VALUE(bool, "has available loot");
+    float lootDistance = AI_VALUE2(float, "distance", "loot target");
+    GuidVector corpses = AI_VALUE(GuidVector, "nearest corpses");
+    Unit* grindTarget = AI_VALUE(Unit*, "grind target");
+
+    std::ostringstream summary;
+    summary << "hasAvailableLoot=" << (hasAvailableLoot ? "true" : "false")
+            << " canLoot=" << (canLoot ? "true" : "false")
+            << " lootTarget=" << (lootTarget.IsEmpty() ? "none" : lootTarget.guid.ToString())
+            << " lootDistance=" << lootDistance
+            << " nearbyCorpses=" << corpses.size()
+            << " grindTarget=" << (grindTarget ? std::to_string(grindTarget->GetEntry()) : "none");
+
+    static std::unordered_map<uint64, std::string> lastSummaryByBot;
+    uint64 botGuidRaw = bot->GetGUID().GetRawValue();
+    std::string const currentSummary = summary.str();
+
+    auto found = lastSummaryByBot.find(botGuidRaw);
+    if (found == lastSummaryByBot.end() || found->second != currentSummary)
+    {
+        LOG_DEBUG("playerbots", "[LootDebug] {} {}", bot->GetName().c_str(), currentSummary.c_str());
+        lastSummaryByBot[botGuidRaw] = currentSummary;
+    }
+
+    return true;
+}
+
+bool LootDebugStatusAction::isUseful() { return IsLootDebugEnabled(botAI); }
 
 bool LootAction::Execute(Event /*event*/)
 {

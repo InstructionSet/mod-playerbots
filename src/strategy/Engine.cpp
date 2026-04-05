@@ -172,6 +172,56 @@ bool Engine::DoNextAction(Unit* unit, uint32 depth, bool minimal)
     METRIC_VALUE("playerbots_dispatch_queue_depth", uint64(queueDepth), METRIC_TAG("scope", "pre_loop"));
     METRIC_VALUE("playerbots_dispatch_iterations_target", uint64(iterationsPerTick));
 
+    bool const queueDebugEnabled =
+        sPlayerbotAIConfig->logValuesPerTick || botAI->HasStrategy("debug", BOT_STATE_NON_COMBAT) ||
+        botAI->HasStrategy("debug", BOT_STATE_COMBAT);
+
+    if (queueDebugEnabled && queueDepth > 0)
+    {
+        Player* bot = botAI->GetBot();
+        std::string const queueTop = queue.DebugTopActions(8);
+
+        std::ostringstream tracked;
+        bool first = true;
+        auto appendTrackedAction = [&](char const* actionName, char const* tag) {
+            float trackedRelevance = 0.0f;
+            uint32 trackedRank = 0;
+
+            if (!first)
+                tracked << " | ";
+            first = false;
+
+            if (queue.GetActionRelevance(actionName, trackedRelevance, trackedRank))
+            {
+                tracked << tag << "=" << trackedRank << "@" << trackedRelevance;
+            }
+            else
+            {
+                tracked << tag << "=missing";
+            }
+        };
+
+        appendTrackedAction("open loot", "open loot");
+        appendTrackedAction("move to loot", "move to loot");
+        appendTrackedAction("loot", "loot");
+        appendTrackedAction("drink", "drink");
+        appendTrackedAction("attack anything", "attack anything");
+        appendTrackedAction("attack my target", "attack my target");
+
+        std::string const signature = std::to_string(queueDepth) + "|" + queueTop + "|" + tracked.str();
+        if (signature != lastQueueDebugSignature)
+        {
+            LOG_DEBUG("playerbots", "{} QTOP[{}]: {}", bot->GetName().c_str(), queueDepth, queueTop);
+            LOG_DEBUG("playerbots", "{} QPOS: {}", bot->GetName().c_str(), tracked.str());
+            lastQueueDebugSignature = signature;
+        }
+    }
+    else if (queueDebugEnabled && !lastQueueDebugSignature.empty())
+    {
+        LOG_DEBUG("playerbots", "{} QTOP[0]: empty", botAI->GetBot()->GetName().c_str());
+        lastQueueDebugSignature.clear();
+    }
+
     while (++iterations <= iterationsPerTick)
     {
         basket = queue.Peek();
@@ -688,7 +738,16 @@ void Engine::ChangeStrategy(std::string const names)
     std::vector<std::string> splitted = split(names, ',');
     for (std::vector<std::string>::iterator i = splitted.begin(); i != splitted.end(); i++)
     {
-        char const* name = i->c_str();
+        // Accept strategy tokens with extra spaces, e.g. "nc ?" or "nc +grind, -stay".
+        std::string token = *i;
+        size_t first = token.find_first_not_of(" \t\n\r");
+        if (first == std::string::npos)
+            continue;
+
+        size_t last = token.find_last_not_of(" \t\n\r");
+        token = token.substr(first, last - first + 1);
+
+        char const* name = token.c_str();
         switch (name[0])
         {
             case '+':

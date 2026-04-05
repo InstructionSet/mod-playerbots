@@ -737,9 +737,7 @@ bool NewRpgBaseAction::GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector
 
     const QuestPOIVector* poiVector = sObjectMgr->GetQuestPOIVector(questId);
     if (!poiVector)
-    {
         return false;
-    }
 
     const QuestStatusData& q_status = bot->getQuestStatusMap().at(questId);
 
@@ -766,15 +764,9 @@ bool NewRpgBaseAction::GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector
                 dy += point.y * weights[i];
             }
 
-            if (bot->GetDistance2d(dx, dy) >= 1500.0f)
-                continue;
-
             float dz = std::max(bot->GetMap()->GetHeight(dx, dy, MAX_HEIGHT), bot->GetMap()->GetWaterLevel(dx, dy));
 
             if (dz == INVALID_HEIGHT || dz == VMAP_INVALID_HEIGHT_VALUE)
-                continue;
-
-            if (bot->GetZoneId() != bot->GetMap()->GetZoneId(bot->GetPhaseMask(), dx, dy, dz))
                 continue;
 
             poiInfo.push_back({{dx, dy}, qPoi.ObjectiveIndex});
@@ -854,7 +846,6 @@ bool NewRpgBaseAction::GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector
 
     if (poiInfo.size() == 0)
     {
-        // LOG_DEBUG("playerbots", "[New rpg] {}: No available poi can be found for quest {}", bot->GetName(), questId);
         return false;
     }
 
@@ -1205,14 +1196,14 @@ bool NewRpgBaseAction::CheckRpgStatusAvailable(NewRpgStatus status)
             for (uint8 slot = 0; slot < MAX_QUEST_LOG_SIZE; ++slot)
             {
                 uint32 questId = bot->GetQuestSlotQuestId(slot);
+                if (!questId)
+                    continue;
                 if (botAI->lowPriorityQuest.find(questId) != botAI->lowPriorityQuest.end())
                     continue;
 
                 std::vector<POIInfo> poiInfo;
                 if (GetQuestPOIPosAndObjectiveIdx(questId, poiInfo, true))
-                {
                     return true;
-                }
             }
             return false;
         }

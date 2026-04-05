@@ -105,7 +105,7 @@ public:
         creators["rpg help"] = &ChatActionContext::rpg_help;
         creators["rpg reset"] = &ChatActionContext::rpg_reset;
         creators["new rpg status"] = &ChatActionContext::new_rpg_status;
-        creators["new rpg do quest"] = &ChatActionContext::new_rpg_do_quest;
+        creators["new rpg do quest cmd"] = &ChatActionContext::new_rpg_do_quest;
         creators["new rpg set"] = &ChatActionContext::new_rpg_set;
         creators["new rpg help"] = &ChatActionContext::new_rpg_help;
         creators["new rpg reset"] = &ChatActionContext::new_rpg_reset;

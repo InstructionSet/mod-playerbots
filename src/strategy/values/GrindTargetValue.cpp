@@ -80,7 +80,17 @@ Unit* GrindTargetValue::FindTargetForGrinding(uint32 assistCount)
             continue;
         }
 
-        if (abs(bot->GetPositionZ() - unit->GetPositionZ()) > INTERACTION_DISTANCE)
+        if (needForQuestMap.find(unit->GetEntry()) == needForQuestMap.end())
+            needForQuestMap[unit->GetEntry()] = needForQuest(unit);
+
+        float zDiff = bot->GetPositionZ() - unit->GetPositionZ();
+        if (zDiff < 0.0f)
+            zDiff = -zDiff;
+
+        // Allow larger height differences only while actively doing a quest and only for quest-relevant mobs.
+        bool relaxQuestZFilter =
+            botAI->rpgInfo.status == RPG_DO_QUEST && needForQuestMap[unit->GetEntry()] && zDiff <= 35.0f;
+        if (zDiff > INTERACTION_DISTANCE && !relaxQuestZFilter)
             continue;
 
         if (!bot->InBattleground() && GetTargetingPlayerCount(unit) > assistCount)
@@ -119,9 +129,6 @@ Unit* GrindTargetValue::FindTargetForGrinding(uint32 assistCount)
         bool outOfAggro = unit->ToCreature() && bot->GetDistance(unit) > aggroRange;
         if (inactiveGrindStatus && outOfAggro)
         {
-            if (needForQuestMap.find(unit->GetEntry()) == needForQuestMap.end())
-                needForQuestMap[unit->GetEntry()] = needForQuest(unit);
-
             if (!needForQuestMap[unit->GetEntry()])
                 continue;
         }

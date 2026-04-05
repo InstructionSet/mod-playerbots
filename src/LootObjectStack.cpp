@@ -11,7 +11,45 @@
 #include "Playerbots.h"
 #include "Unit.h"
 
+#include <unordered_map>
+
 #define MAX_LOOT_OBJECT_COUNT 200
+
+namespace
+{
+    struct LootDebugThrottleState
+    {
+        std::string lastMessage;
+        uint32 lastLogMs = 0;
+    };
+
+    bool IsLootDebugEnabled(PlayerbotAI* botAI)
+    {
+        return botAI &&
+               (botAI->HasStrategy("debug loot", BOT_STATE_NON_COMBAT) ||
+                botAI->HasStrategy("debug loot", BOT_STATE_COMBAT));
+    }
+
+    void LootDebugLog(PlayerbotAI* botAI, Player* bot, std::string const& message)
+    {
+        if (!IsLootDebugEnabled(botAI) || !bot)
+            return;
+
+        static std::unordered_map<uint64, LootDebugThrottleState> stateByBot;
+
+        uint64 botGuidRaw = bot->GetGUID().GetRawValue();
+        LootDebugThrottleState& state = stateByBot[botGuidRaw];
+        uint32 nowMs = getMSTime();
+
+        if (state.lastMessage == message && nowMs - state.lastLogMs < 1500)
+            return;
+
+        state.lastMessage = message;
+        state.lastLogMs = nowMs;
+
+        LOG_DEBUG("playerbots", "[LootDebug] {} {}", bot->GetName().c_str(), message.c_str());
+    }
+}
 
 LootTarget::LootTarget(ObjectGuid guid) : guid(guid), asOfTime(time(nullptr)) {}
 
@@ -275,11 +313,22 @@ LootObject::LootObject(LootObject const& other)
 bool LootObject::IsLootPossible(Player* bot)
 {
     if (IsEmpty() || !bot)
+    {
+        if (bot)
+        {
+            PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
+            LootDebugLog(botAI, bot, "IsLootPossible rejected: empty loot object");
+        }
         return false;
+    }
 
     WorldObject* worldObj = GetWorldObject(bot);  // Store result to avoid multiple calls
     if (!worldObj)
+    {
+        PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
+        LootDebugLog(botAI, bot, "IsLootPossible rejected: world object is not available for guid " + guid.ToString());
         return false;
+    }
 
     PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
     if (!botAI)
@@ -287,51 +336,88 @@ bool LootObject::IsLootPossible(Player* bot)
         return false;
     }
     if (reqItem && !bot->HasItemCount(reqItem, 1))
+    {
+        LootDebugLog(botAI, bot,
+                     "IsLootPossible rejected: missing required item " + std::to_string(reqItem) +
+                         " for guid " + guid.ToString());
         return false;
+    }
 
     if (abs(worldObj->GetPositionZ() - bot->GetPositionZ()) > INTERACTION_DISTANCE - 2.0f)
+    {
+        LootDebugLog(botAI, bot,
+                     "IsLootPossible rejected: vertical distance too high for guid " + guid.ToString());
         return false;
+    }
 
     Creature* creature = botAI->GetCreature(guid);
     if (creature && creature->getDeathState() == DeathState::Corpse)
     {
         if (!bot->isAllowedToLoot(creature) && skillId != SKILL_SKINNING)
+        {
+            LootDebugLog(botAI, bot,
+                         "IsLootPossible rejected: loot rights denied for creature entry " +
+                             std::to_string(creature->GetEntry()) + " guid " + guid.ToString());
             return false;
+        }
     }
 
     // Prevent bot from running to chests that are unlootable (e.g. Gunship Armory before completing the event) or on
     // respawn time
     GameObject* go = botAI->GetGameObject(guid);
     if (go && (go->HasFlag(GAMEOBJECT_FLAGS, GO_FLAG_INTERACT_COND | GO_FLAG_NOT_SELECTABLE) || !go->isSpawned()))
+    {
+        LootDebugLog(botAI, bot,
+                     "IsLootPossible rejected: gameobject not interactable or not spawned, entry " +
+                         std::to_string(go->GetEntry()) + " guid " + guid.ToString());
         return false;
+    }
 
     if (skillId == SKILL_NONE)
         return true;
 
     if (skillId == SKILL_FISHING)
+    {
+        LootDebugLog(botAI, bot, "IsLootPossible rejected: fishing loot is ignored for guid " + guid.ToString());
         return false;
+    }
 
     if (!botAI->HasSkill((SkillType)skillId))
+    {
+        LootDebugLog(botAI, bot,
+                     "IsLootPossible rejected: missing required skill " + std::to_string(skillId) +
+                         " for guid " + guid.ToString());
         return false;
+    }
 
     if (!reqSkillValue)
         return true;
 
     uint32 skillValue = uint32(bot->GetSkillValue(skillId));
     if (reqSkillValue > skillValue)
+    {
+        LootDebugLog(botAI, bot,
+                     "IsLootPossible rejected: skill " + std::to_string(skillId) + " value " +
+                         std::to_string(skillValue) + " below required " + std::to_string(reqSkillValue) +
+                         " for guid " + guid.ToString());
         return false;
+    }
 
     if (skillId == SKILL_MINING && !bot->HasItemCount(756, 1) && !bot->HasItemCount(778, 1) &&
         !bot->HasItemCount(1819, 1) && !bot->HasItemCount(1893, 1) && !bot->HasItemCount(1959, 1) &&
         !bot->HasItemCount(2901, 1) && !bot->HasItemCount(9465, 1) && !bot->HasItemCount(20723, 1) &&
         !bot->HasItemCount(40772, 1) && !bot->HasItemCount(40892, 1) && !bot->HasItemCount(40893, 1))
     {
+        LootDebugLog(botAI, bot,
+                     "IsLootPossible rejected: missing mining pick for guid " + guid.ToString());
         return false;  // Bot is missing a mining pick
     }
 
     if (skillId == SKILL_SKINNING && !bot->HasItemCount(7005, 1) && !bot->HasItemCount(40772, 1) &&
         !bot->HasItemCount(40893, 1) && !bot->HasItemCount(12709, 1) && !bot->HasItemCount(19901, 1))
     {
+        LootDebugLog(botAI, bot,
+                     "IsLootPossible rejected: missing skinning knife for guid " + guid.ToString());
         return false;  // Bot is missing a skinning knife
     }
 

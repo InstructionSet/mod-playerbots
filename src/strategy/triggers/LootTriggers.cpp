@@ -23,9 +23,9 @@ bool LootAvailableTrigger::IsActive()
                                                                  INTERACTION_DISTANCE - 2.0f);
     }
 
-    // if loot target if empty, always pass distance check
+    // If not in loot range, only block looting when there are active attackers.
     return AI_VALUE(bool, "has available loot") &&
-        (distanceCheck || AI_VALUE(GuidVector, "all targets").empty());
+        (distanceCheck || AI_VALUE(GuidVector, "attackers").empty());
 }
 
 bool FarFromCurrentLootTrigger::IsActive()

@@ -53,4 +53,23 @@ public:
     std::string const getName() override { return "debug quest"; }
 };
 
+class DebugDoQuestStrategy : public Strategy
+{
+public:
+    DebugDoQuestStrategy(PlayerbotAI* botAI) : Strategy(botAI) {}
+
+    uint32 GetType() const override { return STRATEGY_TYPE_NONCOMBAT | STRATEGY_TYPE_COMBAT; }
+    std::string const getName() override { return "debug do quest"; }
+};
+
+class DebugLootStrategy : public Strategy
+{
+public:
+    DebugLootStrategy(PlayerbotAI* botAI) : Strategy(botAI) {}
+
+    uint32 GetType() const override { return STRATEGY_TYPE_NONCOMBAT | STRATEGY_TYPE_COMBAT; }
+    std::string const getName() override { return "debug loot"; }
+    void InitTriggers(std::vector<TriggerNode*>& triggers) override;
+};
+
 #endif

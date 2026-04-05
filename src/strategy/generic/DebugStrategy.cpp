@@ -6,3 +6,9 @@
 #include "DebugStrategy.h"
 
 #include "Playerbots.h"
+
+void DebugLootStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
+{
+	triggers.push_back(
+		new TriggerNode("very often", NextAction::array(0, new NextAction("debug loot status", 1.0f), nullptr)));
+}

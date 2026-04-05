@@ -32,7 +32,7 @@ public:
         creators["rpg help"] = &ChatTriggerContext::rpg_help;
         creators["rpg reset"] = &ChatTriggerContext::rpg_reset;
         creators["new rpg status"] = &ChatTriggerContext::new_rpg_status;
-        creators["new rpg do quest"] = &ChatTriggerContext::new_rpg_do_quest;
+        creators["new rpg do quest cmd"] = &ChatTriggerContext::new_rpg_do_quest;
         creators["new rpg set"] = &ChatTriggerContext::new_rpg_set;
         creators["new rpg help"] = &ChatTriggerContext::new_rpg_help;
         creators["new rpg reset"] = &ChatTriggerContext::new_rpg_reset;
@@ -241,7 +241,7 @@ private:
     static Trigger* rpg_help(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "rpg help"); }
     static Trigger* rpg_reset(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "rpg reset"); }
     static Trigger* new_rpg_status(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "new rpg status"); }
-    static Trigger* new_rpg_do_quest(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "new rpg do quest"); }
+    static Trigger* new_rpg_do_quest(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "new rpg do quest cmd"); }
     static Trigger* new_rpg_set(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "new rpg set"); }
     static Trigger* new_rpg_help(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "new rpg help"); }
     static Trigger* new_rpg_reset(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "new rpg reset"); }

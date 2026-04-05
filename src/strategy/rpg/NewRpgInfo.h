@@ -11,6 +11,17 @@
 
 using NewRpgStatusTransitionProb = std::vector<std::vector<int>>;
 
+enum class DoQuestPhase : uint8
+{
+    SelectObjectivePOI = 0,
+    TravelToObjectivePOI,
+    ExecuteObjective,
+    WaitOrRotateObjective,
+    SelectRewardPOI,
+    TravelToRewardPOI,
+    WaitForTurnIn
+};
+
 struct NewRpgInfo
 {
     NewRpgInfo() {}
@@ -44,6 +55,12 @@ struct NewRpgInfo
         int32 objectiveIdx{0};
         WorldPosition pos{};
         uint32 lastReachPOI{0};
+        DoQuestPhase phase{DoQuestPhase::SelectObjectivePOI};
+        uint32 phaseStartMs{0};
+        uint32 lastMoveIssueMs{0};
+        uint32 stagnantTicks{0};
+        ObjectGuid lastTrackedTarget{};
+        float lastTrackedDistance{FLT_MAX};
     };
     // RPG_TRAVEL_FLIGHT
     struct TravelFlight

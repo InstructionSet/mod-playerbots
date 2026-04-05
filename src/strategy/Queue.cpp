@@ -8,6 +8,10 @@
 #include "Log.h"
 #include "PlayerbotAIConfig.h"
 
+#include <algorithm>
+#include <sstream>
+#include <vector>
+
 void Queue::Push(ActionBasket* action)
 {
     if (!action)
@@ -46,6 +50,90 @@ ActionBasket* Queue::Peek()
 uint32 Queue::Size()
 {
     return actions.size();
+}
+
+std::string Queue::DebugTopActions(uint32 limit)
+{
+    if (!limit || actions.empty())
+    {
+        return "empty";
+    }
+
+    std::vector<ActionBasket*> ordered;
+    ordered.reserve(actions.size());
+
+    for (ActionBasket* basket : actions)
+    {
+        if (basket)
+        {
+            ordered.push_back(basket);
+        }
+    }
+
+    if (ordered.empty())
+    {
+        return "empty";
+    }
+
+    std::sort(ordered.begin(), ordered.end(), [](ActionBasket* a, ActionBasket* b) {
+        return a->getRelevance() > b->getRelevance();
+    });
+
+    std::ostringstream out;
+    uint32 const count = std::min<uint32>(limit, ordered.size());
+    for (uint32 i = 0; i < count; ++i)
+    {
+        if (i)
+        {
+            out << " | ";
+        }
+
+        ActionNode* action = ordered[i]->getAction();
+        out << (i + 1) << ":" << (action ? action->getName() : "?") << "(" << ordered[i]->getRelevance() << ")";
+    }
+
+    return out.str();
+}
+
+bool Queue::GetActionRelevance(std::string const& actionName, float& relevance, uint32& rank)
+{
+    std::vector<ActionBasket*> ordered;
+    ordered.reserve(actions.size());
+
+    for (ActionBasket* basket : actions)
+    {
+        if (basket)
+        {
+            ordered.push_back(basket);
+        }
+    }
+
+    if (ordered.empty())
+    {
+        return false;
+    }
+
+    std::sort(ordered.begin(), ordered.end(), [](ActionBasket* a, ActionBasket* b) {
+        return a->getRelevance() > b->getRelevance();
+    });
+
+    for (uint32 i = 0; i < ordered.size(); ++i)
+    {
+        ActionNode* action = ordered[i]->getAction();
+        if (!action)
+        {
+            continue;
+        }
+
+        if (action->getName() == actionName)
+        {
+            relevance = ordered[i]->getRelevance();
+            rank = i + 1;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void Queue::RemoveExpired()

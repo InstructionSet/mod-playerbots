@@ -159,6 +159,17 @@ public:
     {
         if (type == CHAT_MSG_WHISPER)
         {
+            // Self-bot mode can route self whispers without a valid receiver.
+            // In that case, execute the command on the sender bot AI.
+            if (PlayerbotAI* senderBotAI = GET_PLAYERBOT_AI(player))
+            {
+                if (!receiver || receiver == player)
+                {
+                    senderBotAI->HandleCommand(type, msg, player);
+                    return false;
+                }
+            }
+
             if (PlayerbotAI* botAI = GET_PLAYERBOT_AI(receiver))
             {
                 botAI->HandleCommand(type, msg, player);

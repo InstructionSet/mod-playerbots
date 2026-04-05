@@ -9,6 +9,8 @@
 #include "Action.h"
 #include "Common.h"
 
+#include <string>
+
 /**
  * @class Queue
  * @brief Manages a priority queue of actions for the playerbot system
@@ -60,6 +62,20 @@ public:
      * Both the ActionNode and ActionBasket are deleted for expired actions.
      */
     void RemoveExpired();
+
+    /**
+     * @brief Builds a short text snapshot of top actions by relevance
+     * @param limit Maximum number of actions to include
+     */
+    std::string DebugTopActions(uint32 limit);
+
+    /**
+     * @brief Finds action rank and relevance in current queue ordering
+     * @param actionName Name to search for
+     * @param relevance Output relevance value when found
+     * @param rank Output 1-based rank by relevance when found
+     */
+    bool GetActionRelevance(std::string const& actionName, float& relevance, uint32& rank);
 
 private:
     /**

@@ -41,6 +41,8 @@ void NewRpgInfo::ChangeToDoQuest(uint32 questId, const Quest* quest)
     do_quest = DoQuest();
     do_quest.questId = questId;
     do_quest.quest = quest;
+    do_quest.phase = DoQuestPhase::SelectObjectivePOI;
+    do_quest.phaseStartMs = getMSTime();
 }
 
 void NewRpgInfo::ChangeToTravelFlight(ObjectGuid fromFlightMaster, uint32 fromNode, uint32 toNode)
@@ -123,7 +125,7 @@ std::string NewRpgInfo::ToString()
             out << "\nobjectiveIdx: " << do_quest.objectiveIdx;
             out << "\npoiPos: " << do_quest.pos.GetMapId() << " " << do_quest.pos.GetPositionX() << " "
                 << do_quest.pos.GetPositionY() << " " << do_quest.pos.GetPositionZ();
-            out << "\nlastReachPOI: " << do_quest.lastReachPOI ? GetMSTimeDiffToNow(do_quest.lastReachPOI) : 0;
+            out << "\nlastReachPOI: " << (do_quest.lastReachPOI ? GetMSTimeDiffToNow(do_quest.lastReachPOI) : 0);
             break;
         case RPG_TRAVEL_FLIGHT:
             out << "TRAVEL_FLIGHT";

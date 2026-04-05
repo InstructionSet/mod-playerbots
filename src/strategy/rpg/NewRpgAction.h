@@ -116,6 +116,15 @@ public:
 protected:
     bool DoIncompleteQuest();
     bool DoCompletedQuest();
+    bool TryDeferTurnInForNearbyObjective(uint32 completedQuestId);
+    bool FindNearbyIncompleteQuest(uint32 completedQuestId, uint32& nearbyQuestId, float& nearbyDistance);
+    void CheckAndClearCompletedObjective(uint32 questId);
+    bool SelectIncompleteObjectivePOI(uint32 questId);
+    bool ExecuteObjectiveAtPOI(uint32 questId);
+    bool HandleObjectiveStayAndRotation(uint32 questId);
+    bool SelectRewardPOI(uint32 questId, Quest const* quest);
+    bool HandleRewardPOI(uint32 questId);
+    bool YieldForNearbyLoot(uint32 questId, int32 currentObjective);
 
     const uint32 poiStayTime = 5 * 60 * 1000;
 };
