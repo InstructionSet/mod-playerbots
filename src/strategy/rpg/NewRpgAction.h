@@ -4,6 +4,13 @@
 #include "Duration.h"
 #include "MovementActions.h"
 #include "NewRpgBaseAction.h"
+#include "NewRpgDoCompletedQuestAction.h"
+#include "NewRpgDoIncompleteQuestAction.h"
+#include "NewRpgQuestExecutionAction.h"
+#include "NewRpgQuestDeferralAction.h"
+#include "NewRpgQuestGiverAction.h"
+#include "NewRpgQuestLifecycleAction.h"
+#include "NewRpgQuestPositioningAction.h"
 #include "NewRpgInfo.h"
 #include "NewRpgStrategy.h"
 #include "Object.h"
@@ -105,28 +112,6 @@ public:
     bool Execute(Event event) override;
 
     const uint32 npcStayTime = 8 * 1000;
-};
-
-class NewRpgDoQuestAction : public NewRpgBaseAction
-{
-public:
-    NewRpgDoQuestAction(PlayerbotAI* botAI) : NewRpgBaseAction(botAI, "new rpg do quest") {}
-    bool Execute(Event event) override;
-
-protected:
-    bool DoIncompleteQuest();
-    bool DoCompletedQuest();
-    bool TryDeferTurnInForNearbyObjective(uint32 completedQuestId);
-    bool FindNearbyIncompleteQuest(uint32 completedQuestId, uint32& nearbyQuestId, float& nearbyDistance);
-    void CheckAndClearCompletedObjective(uint32 questId);
-    bool SelectIncompleteObjectivePOI(uint32 questId);
-    bool ExecuteObjectiveAtPOI(uint32 questId);
-    bool HandleObjectiveStayAndRotation(uint32 questId);
-    bool SelectRewardPOI(uint32 questId, Quest const* quest);
-    bool HandleRewardPOI(uint32 questId);
-    bool YieldForNearbyLoot(uint32 questId, int32 currentObjective);
-
-    const uint32 poiStayTime = 5 * 60 * 1000;
 };
 
 class NewRpgTravelFlightAction : public NewRpgBaseAction

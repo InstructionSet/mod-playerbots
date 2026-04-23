@@ -125,6 +125,20 @@ public:
     Unit* Calculate();
 };
 
+class TargetingRiskHelper
+{
+public:
+    static float CalculateSelectionRisk(PlayerbotAI* botAI, Unit* target);
+    static bool ShouldAvoidApproach(PlayerbotAI* botAI, Unit* target, float distance);
+};
+
+class TargetingDebugHelper
+{
+public:
+    static bool IsEnabled(PlayerbotAI* botAI);
+    static void Log(PlayerbotAI* botAI, std::string const& message);
+};
+
 class FindBossTargetStrategy : public FindTargetStrategy
 {
 public:

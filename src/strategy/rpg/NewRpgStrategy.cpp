@@ -31,7 +31,8 @@ public:
         bool const isStillTravelingToPoi = hasObjectivePoi && !hasReachedPoi &&
                                         botAI->GetBot()->GetDistance(doQuest.pos) > 10.0f;
 
-        return isStillTravelingToPoi ? 0.0f : 1.0f;
+        // TODO: seems broken
+        return isStillTravelingToPoi ? 1.0f : 1.0f;
     }
 };
 }
@@ -42,29 +43,46 @@ NextAction** NewRpgStrategy::getDefaultActions()
 {
     // the releavance should be greater than grind
     return NextAction::array(0,
-        new NextAction("new rpg status update", 11.0f),
+    new NextAction("new rpg status update", NewRpgPriority::StatusUpdate),
         nullptr);
 }
 
 void NewRpgStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
 {
     triggers.push_back(
-        new TriggerNode("go grind status", NextAction::array(0, new NextAction("new rpg go grind", 3.0f), nullptr)));
+        new TriggerNode("go grind status",
+                        NextAction::array(0, new NextAction("new rpg go grind", NewRpgPriority::StatusAction), nullptr)));
 
     triggers.push_back(
-        new TriggerNode("go camp status", NextAction::array(0, new NextAction("new rpg go camp", 3.0f), nullptr)));
+        new TriggerNode("go camp status",
+                        NextAction::array(0, new NextAction("new rpg go camp", NewRpgPriority::StatusAction), nullptr)));
 
     triggers.push_back(
-        new TriggerNode("wander random status", NextAction::array(0, new NextAction("new rpg wander random", 3.0f), nullptr)));
+        new TriggerNode("wander random status",
+                        NextAction::array(0,
+                                          new NextAction("new rpg wander random", NewRpgPriority::StatusAction),
+                                          nullptr)));
 
     triggers.push_back(
-        new TriggerNode("wander npc status", NextAction::array(0, new NextAction("new rpg wander npc", 3.0f), nullptr)));
+        new TriggerNode("wander npc status",
+                        NextAction::array(0, new NextAction("new rpg wander npc", NewRpgPriority::StatusAction), nullptr)));
 
     triggers.push_back(
-        new TriggerNode("do quest status", NextAction::array(0, new NextAction("new rpg do quest", 4.1f), nullptr)));
+        new TriggerNode("do quest status",
+                        NextAction::array(0,
+                                          new NextAction("new rpg quest deferral", NewRpgPriority::QuestDeferral),
+                                          new NextAction("new rpg quest giver", NewRpgPriority::QuestGiver),
+                                          new NextAction("new rpg quest lifecycle", NewRpgPriority::QuestDoLifecycle),
+                                          new NextAction("new rpg quest positioning", NewRpgPriority::QuestDoPositioning),
+                                          new NextAction("new rpg quest execution", NewRpgPriority::QuestDoExecution),
+                                          new NextAction("new rpg do complete quest", NewRpgPriority::QuestDoCompleted),
+                                          nullptr)));
 
     triggers.push_back(
-        new TriggerNode("travel flight status", NextAction::array(0, new NextAction("new rpg travel flight", 3.0f), nullptr)));
+        new TriggerNode("travel flight status", 
+                        NextAction::array(0,
+                                          new NextAction("new rpg travel flight", NewRpgPriority::StatusAction),
+                                          nullptr)));
 }
 
 void NewRpgStrategy::InitMultipliers(std::vector<Multiplier*>& multipliers)

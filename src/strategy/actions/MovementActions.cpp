@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <iomanip>
 #include <string>
+#include <unordered_map>
 
 #include "Event.h"
 #include "FleeManager.h"
@@ -36,12 +37,141 @@
 #include "SpellInfo.h"
 #include "Stances.h"
 #include "TargetedMovementGenerator.h"
+#include "TargetValue.h"
 #include "Timer.h"
 #include "Transport.h"
 #include "Unit.h"
 #include "Vehicle.h"
 #include "WaypointMovementGenerator.h"
 #include "Corpse.h"
+
+namespace
+{
+struct MoveDebugThrottleState
+{
+    std::string lastMessage;
+    uint32 lastLogMs = 0;
+};
+
+bool IsMoveDebugEnabled(PlayerbotAI* botAI)
+{
+    return botAI &&
+           (botAI->HasStrategy("debug move", BOT_STATE_NON_COMBAT) ||
+            botAI->HasStrategy("debug move", BOT_STATE_COMBAT) ||
+            botAI->HasStrategy("debug", BOT_STATE_NON_COMBAT) ||
+            botAI->HasStrategy("debug", BOT_STATE_COMBAT));
+}
+
+void LogMoveDebug(PlayerbotAI* botAI, Player* bot, std::string const& message)
+{
+    if (!IsMoveDebugEnabled(botAI) || !bot)
+        return;
+
+    static std::unordered_map<uint64, MoveDebugThrottleState> stateByBot;
+
+    uint64 botGuidRaw = bot->GetGUID().GetRawValue();
+    MoveDebugThrottleState& state = stateByBot[botGuidRaw];
+    uint32 nowMs = getMSTime();
+
+    if (state.lastMessage == message && nowMs - state.lastLogMs < 1000)
+        return;
+
+    state.lastMessage = message;
+    state.lastLogMs = nowMs;
+
+    LOG_DEBUG("playerbots", "[MoveDebug] {} {}", bot->GetName().c_str(), message.c_str());
+}
+
+const char* MovementPriorityName(MovementPriority priority)
+{
+    switch (priority)
+    {
+        case MovementPriority::MOVEMENT_IDLE:
+            return "idle";
+        case MovementPriority::MOVEMENT_WANDER:
+            return "wander";
+        case MovementPriority::MOVEMENT_NORMAL:
+            return "normal";
+        case MovementPriority::MOVEMENT_COMBAT:
+            return "combat";
+        case MovementPriority::MOVEMENT_FORCED:
+            return "forced";
+        default:
+            return "unknown";
+    }
+}
+
+std::string FormatMoveDestination(uint32 mapId, float x, float y, float z)
+{
+    return "map=" + std::to_string(mapId) + " pos=" + std::to_string(x) + "," + std::to_string(y) + "," +
+           std::to_string(z);
+}
+
+std::string DescribeMovementBlock(PlayerbotAI* botAI, Player* bot)
+{
+    if (!botAI || !bot)
+        return "movement not allowed";
+
+    if (botAI->IsInVehicle() && !botAI->IsInVehicle(true))
+        return "movement not allowed: passenger seat cannot control vehicle";
+
+    if (bot->isFrozen())
+        return "movement not allowed: frozen";
+
+    if (bot->IsPolymorphed())
+        return "movement not allowed: polymorphed";
+
+    if (bot->isDead() && !bot->HasPlayerFlag(PLAYER_FLAGS_GHOST))
+        return "movement not allowed: dead and not ghost";
+
+    if (bot->IsBeingTeleported())
+        return "movement not allowed: teleporting";
+
+    if (bot->HasRootAura())
+        return "movement not allowed: rooted";
+
+    if (bot->HasSpiritOfRedemptionAura())
+        return "movement not allowed: spirit of redemption";
+
+    if (bot->HasConfuseAura())
+        return "movement not allowed: confused";
+
+    if (bot->IsCharmed())
+        return "movement not allowed: charmed";
+
+    if (bot->HasStunAura())
+        return "movement not allowed: stunned";
+
+    if (bot->IsInFlight())
+        return "movement not allowed: in flight";
+
+    if (bot->HasUnitState(UNIT_STATE_LOST_CONTROL))
+        return "movement not allowed: lost control";
+
+    if (bot->GetMotionMaster()->GetMotionSlotType(MOTION_SLOT_CONTROLLED) != NULL_MOTION_TYPE)
+        return "movement not allowed: controlled movement slot active";
+
+    if (bot->GetMotionMaster()->GetCurrentMovementGeneratorType() == FLIGHT_MOTION_TYPE)
+        return "movement not allowed: flight movement generator active";
+
+    return "movement not allowed: unknown guard";
+}
+
+std::string DescribeWaitForLastMove(PlayerbotAI* botAI)
+{
+    if (!botAI)
+        return "waiting for last move";
+
+    LastMovement& lastMove = *botAI->GetAiObjectContext()->GetValue<LastMovement&>("last movement");
+    int64 waitUntil = static_cast<int64>(lastMove.msTime) + static_cast<int64>(lastMove.lastdelayTime);
+    int64 remainingMs = waitUntil - static_cast<int64>(getMSTime());
+    if (remainingMs < 0)
+        remainingMs = 0;
+
+    return "waiting for last move: remainingMs=" + std::to_string(remainingMs) + " lastPriority=" +
+           MovementPriorityName(lastMove.priority);
+}
+}
 
 MovementAction::MovementAction(PlayerbotAI* botAI, std::string const name) : Action(botAI, name)
 {
@@ -68,14 +198,21 @@ bool MovementAction::JumpTo(uint32 mapId, float x, float y, float z, MovementPri
     UpdateMovementState();
     if (!IsMovingAllowed(mapId, x, y, z))
     {
+        LogMoveDebug(botAI, bot, std::string("JumpTo blocked: ") + DescribeMovementBlock(botAI, bot) + " " +
+                                    FormatMoveDestination(mapId, x, y, z));
         return false;
     }
     if (IsDuplicateMove(mapId, x, y, z))
     {
+        LogMoveDebug(botAI, bot,
+                     std::string("JumpTo blocked: duplicate move ") + FormatMoveDestination(mapId, x, y, z));
         return false;
     }
     if (IsWaitingForLastMove(priority))
     {
+        LogMoveDebug(botAI, bot,
+                     std::string("JumpTo blocked: ") + DescribeWaitForLastMove(botAI) + " requestedPriority=" +
+                         MovementPriorityName(priority) + " " + FormatMoveDestination(mapId, x, y, z));
         return false;
     }
     float botZ = bot->GetPositionZ();
@@ -182,14 +319,21 @@ bool MovementAction::MoveTo(uint32 mapId, float x, float y, float z, bool idle, 
     UpdateMovementState();
     if (!IsMovingAllowed(mapId, x, y, z))
     {
+        LogMoveDebug(botAI, bot, std::string("MoveTo blocked: ") + DescribeMovementBlock(botAI, bot) + " " +
+                                    FormatMoveDestination(mapId, x, y, z));
         return false;
     }
     if (IsDuplicateMove(mapId, x, y, z))
     {
+        LogMoveDebug(botAI, bot,
+                     std::string("MoveTo blocked: duplicate move ") + FormatMoveDestination(mapId, x, y, z));
         return false;
     }
     if (IsWaitingForLastMove(priority))
     {
+        LogMoveDebug(botAI, bot,
+                     std::string("MoveTo blocked: ") + DescribeWaitForLastMove(botAI) + " requestedPriority=" +
+                         MovementPriorityName(priority) + " " + FormatMoveDestination(mapId, x, y, z));
         return false;
     }
     bool generatePath = !bot->IsFlying() && !bot->isSwimming();
@@ -202,7 +346,12 @@ bool MovementAction::MoveTo(uint32 mapId, float x, float y, float z, bool idle, 
         // If the mover (vehicle) can fly, we DO NOT want an mmaps path (2D ground) => disable pathfinding
         generatePath = !vehicleBase || !vehicleBase->CanFly();
         if (!vehicleBase || !seat || !seat->CanControl())  // is passenger and cant move anyway
+        {
+            LogMoveDebug(botAI, bot,
+                         std::string("MoveTo blocked: vehicle passenger cannot control movement ") +
+                             FormatMoveDestination(mapId, x, y, z));
             return false;
+        }
 
         float distance = vehicleBase->GetExactDist(x, y, z);  // use vehicle distance, not bot
         if (distance > 0.01f)
@@ -234,6 +383,10 @@ bool MovementAction::MoveTo(uint32 mapId, float x, float y, float z, bool idle, 
             AI_VALUE(LastMovement&, "last movement").Set(mapId, x, y, z, bot->GetOrientation(), delay, priority);
             return true;
         }
+
+        LogMoveDebug(botAI, bot,
+                     std::string("MoveTo blocked: vehicle destination already reached ") +
+                         FormatMoveDestination(mapId, x, y, z));
     }
     else if (exact_waypoint || disableMoveSplinePath || !generatePath)
     {
@@ -275,6 +428,10 @@ bool MovementAction::MoveTo(uint32 mapId, float x, float y, float z, bool idle, 
             AI_VALUE(LastMovement&, "last movement").Set(mapId, x, y, z, bot->GetOrientation(), delay, priority);
             return true;
         }
+
+        LogMoveDebug(botAI, bot,
+                     std::string("MoveTo blocked: destination already reached ") +
+                         FormatMoveDestination(mapId, x, y, z));
     }
     else
     {
@@ -283,6 +440,9 @@ bool MovementAction::MoveTo(uint32 mapId, float x, float y, float z, bool idle, 
             SearchForBestPath(x, y, z, modifiedZ, sPlayerbotAIConfig->maxMovementSearchTime, normal_only);
         if (modifiedZ == INVALID_HEIGHT)
         {
+            LogMoveDebug(botAI, bot,
+                         std::string("MoveTo blocked: SearchForBestPath failed (invalid height) normalOnly=") +
+                             (normal_only ? "true" : "false") + " " + FormatMoveDestination(mapId, x, y, z));
             return false;
         }
         float distance = bot->GetExactDist(x, y, modifiedZ);
@@ -324,8 +484,16 @@ bool MovementAction::MoveTo(uint32 mapId, float x, float y, float z, bool idle, 
             AI_VALUE(LastMovement&, "last movement").Set(mapId, x, y, z, bot->GetOrientation(), delay, priority);
             return true;
         }
+
+        LogMoveDebug(botAI, bot,
+                     std::string("MoveTo blocked: path resolved but destination already reached resolvedZ=") +
+                         std::to_string(modifiedZ) + " pathPoints=" + std::to_string(path.size()) + " " +
+                         FormatMoveDestination(mapId, x, y, z));
     }
 
+    LogMoveDebug(botAI, bot,
+                 std::string("MoveTo blocked: no movement issued after evaluation ") +
+                     FormatMoveDestination(mapId, x, y, z));
     return false;
     //
     // // LOG_DEBUG("playerbots", "IsMovingAllowed {}", IsMovingAllowed());
@@ -859,7 +1027,11 @@ bool MovementAction::MoveTo(WorldObject* target, float distance, MovementPriorit
 bool MovementAction::ReachCombatTo(Unit* target, float distance)
 {
     if (!IsMovingAllowed(target))
+    {
+        TargetingDebugHelper::Log(botAI, std::string("ReachCombatTo blocked: moving not allowed for target ") +
+                                             (target ? target->GetName() : "none"));
         return false;
+    }
 
     float bx = bot->GetPositionX();
     float by = bot->GetPositionY();
@@ -892,14 +1064,22 @@ bool MovementAction::ReachCombatTo(Unit* target, float distance)
     distance += combatDistance;
 
     if (bot->GetExactDist(tx, ty, tz) <= distance)
+    {
+        TargetingDebugHelper::Log(botAI, std::string("ReachCombatTo blocked: already within desired distance of ") +
+                                             target->GetName());
         return false;
+    }
 
     PathGenerator path(bot);
     path.CalculatePath(tx, ty, tz, false);
     PathType type = path.GetPathType();
     int typeOk = PATHFIND_NORMAL | PATHFIND_INCOMPLETE | PATHFIND_SHORTCUT;
     if (!(type & typeOk))
+    {
+        TargetingDebugHelper::Log(botAI, std::string("ReachCombatTo path failed for ") + target->GetName() +
+                                             " pathType=" + std::to_string(type));
         return false;
+    }
     float shortenTo = distance;
 
     // Avoid walking too far when moving towards each other
@@ -912,8 +1092,23 @@ bool MovementAction::ReachCombatTo(Unit* target, float distance)
 
     path.ShortenPathUntilDist(G3D::Vector3(tx, ty, tz), shortenTo);
     G3D::Vector3 endPos = path.GetPath().back();
-    return MoveTo(target->GetMapId(), endPos.x, endPos.y, endPos.z, false, false, false, false,
-                  MovementPriority::MOVEMENT_COMBAT, true);
+    bool moved = MoveTo(target->GetMapId(), endPos.x, endPos.y, endPos.z, false, false, false, false,
+                        MovementPriority::MOVEMENT_COMBAT, true);
+    if (!moved)
+    {
+        TargetingDebugHelper::Log(botAI,
+                                  std::string("ReachCombatTo move failed for ") + target->GetName() + " endPos=" +
+                                      std::to_string(endPos.x) + "," + std::to_string(endPos.y) + "," +
+                                      std::to_string(endPos.z));
+    }
+    else
+    {
+        TargetingDebugHelper::Log(botAI,
+                                  std::string("ReachCombatTo moving toward ") + target->GetName() + " endPos=" +
+                                      std::to_string(endPos.x) + "," + std::to_string(endPos.y) + "," +
+                                      std::to_string(endPos.z));
+    }
+    return moved;
 }
 
 float MovementAction::GetFollowAngle()

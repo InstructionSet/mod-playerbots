@@ -1,6 +1,8 @@
 #ifndef _PLAYERBOT_NEWRPGBASEACTION_H
 #define _PLAYERBOT_NEWRPGBASEACTION_H
 
+#include <limits>
+
 #include "Duration.h"
 #include "LastMovementValue.h"
 #include "MovementActions.h"
@@ -12,6 +14,9 @@
 #include "PlayerbotAI.h"
 #include "QuestDef.h"
 #include "TravelMgr.h"
+
+class GameObject;
+class Unit;
 
 struct POIInfo
 {
@@ -44,11 +49,32 @@ protected:
     bool IsQuestWorthDoing(Quest const* quest);
     bool IsQuestCapableDoing(Quest const* quest);
 
+    /* PATH THREAT */
+    struct GoThreat
+    {
+        Unit* unit = nullptr;
+        float distanceSq = std::numeric_limits<float>::max();
+        enum class Reason { PathCorridor, GoVicinity } reason = Reason::PathCorridor;
+    };
+    GoThreat FindBlockingThreatForPathToPosition(float destinationX, float destinationY,
+                                                 GuidVector const& possibleTargets,
+                                                 float destinationVicinity = 15.0f) const;
+    GoThreat FindBlockingThreatForGoApproach(GameObject* go, GuidVector const& possibleTargets) const;
+    bool ShouldAvoidPathThreat(Unit* threat, GuidVector const& possibleTargets) const;
+    bool HandlePathThreatBeforeMove(GoThreat const& blocking, GuidVector const& possibleTargets,
+                                    std::string const& moveLabel) const;
+
     /* QUEST RELATED ACTION */
     bool SearchQuestGiverAndAcceptOrReward();
     bool AcceptQuest(Quest const* quest, ObjectGuid guid);
     bool TurnInQuest(Quest const* quest, ObjectGuid guid);
     bool OrganizeQuestLog();
+
+protected:
+    bool TrySwitchToAnotherIncompleteQuest(uint32 currentQuestId, std::string const& reason);
+
+protected:
+    const uint32 poiStayTime = 5 * 60 * 1000;
 
 protected:
     bool GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector<POIInfo>& poiInfo, bool toComplete = false);

@@ -8,6 +8,27 @@
 #include "PlayerbotAIConfig.h"
 #include "Playerbots.h"
 
+namespace
+{
+bool PreferSaferSoloTarget(PlayerbotAI* botAI, Unit* newUnit, Unit* oldUnit)
+{
+    Player* bot = botAI ? botAI->GetBot() : nullptr;
+    if (!bot || bot->GetGroup() || !newUnit || !oldUnit)
+        return false;
+
+    float newRisk = TargetingRiskHelper::CalculateSelectionRisk(botAI, newUnit);
+    float oldRisk = TargetingRiskHelper::CalculateSelectionRisk(botAI, oldUnit);
+    Unit* currentTarget = botAI->GetAiObjectContext()->GetValue<Unit*>("current target")->Get();
+
+    if (currentTarget == newUnit)
+        newRisk -= 0.75f;
+    else if (currentTarget == oldUnit)
+        oldRisk -= 0.75f;
+
+    return newRisk + 1.25f < oldRisk;
+}
+}
+
 class FindMaxThreatGapTargetStrategy : public FindTargetStrategy
 {
 public:
@@ -85,6 +106,11 @@ public:
     }
     bool IsBetter(Unit* new_unit, Unit* old_unit)
     {
+        if (PreferSaferSoloTarget(botAI, new_unit, old_unit))
+            return true;
+        if (PreferSaferSoloTarget(botAI, old_unit, new_unit))
+            return false;
+
         float new_time = new_unit->GetHealth() / dps_;
         float old_time = old_unit->GetHealth() / dps_;
         // [5-30] > (5-0] > (20-inf)
@@ -176,6 +202,11 @@ public:
     }
     bool IsBetter(Unit* new_unit, Unit* old_unit)
     {
+        if (PreferSaferSoloTarget(botAI, new_unit, old_unit))
+            return true;
+        if (PreferSaferSoloTarget(botAI, old_unit, new_unit))
+            return false;
+
         float new_time = new_unit->GetHealth() / dps_;
         float old_time = old_unit->GetHealth() / dps_;
         int new_level = GetIntervalLevel(new_unit);
@@ -250,6 +281,11 @@ public:
     }
     bool IsBetter(Unit* new_unit, Unit* old_unit)
     {
+        if (PreferSaferSoloTarget(botAI, new_unit, old_unit))
+            return true;
+        if (PreferSaferSoloTarget(botAI, old_unit, new_unit))
+            return false;
+
         float new_time = new_unit->GetHealth() / dps_;
         float old_time = old_unit->GetHealth() / dps_;
         // [5-20] > (5-0] > (20-inf)

@@ -11,6 +11,7 @@
 #include "Playerbots.h"
 #include "Unit.h"
 
+#include <cmath>
 #include <unordered_map>
 
 #define MAX_LOOT_OBJECT_COUNT 200
@@ -314,11 +315,7 @@ bool LootObject::IsLootPossible(Player* bot)
 {
     if (IsEmpty() || !bot)
     {
-        if (bot)
-        {
-            PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
-            LootDebugLog(botAI, bot, "IsLootPossible rejected: empty loot object");
-        }
+        // Empty entries are expected during scan/cleanup; logging this is noisy and not actionable.
         return false;
     }
 
@@ -343,11 +340,29 @@ bool LootObject::IsLootPossible(Player* bot)
         return false;
     }
 
-    if (abs(worldObj->GetPositionZ() - bot->GetPositionZ()) > INTERACTION_DISTANCE - 2.0f)
+    float verticalDistance = std::fabs(worldObj->GetPositionZ() - bot->GetPositionZ());
+    float dx = worldObj->GetPositionX() - bot->GetPositionX();
+    float dy = worldObj->GetPositionY() - bot->GetPositionY();
+    float horizontalDistance2d = std::sqrt(dx * dx + dy * dy);
+
+    float interactionHorizontalDistance = INTERACTION_DISTANCE + 1.0f;
+    if (horizontalDistance2d <= interactionHorizontalDistance)
     {
-        LootDebugLog(botAI, bot,
-                     "IsLootPossible rejected: vertical distance too high for guid " + guid.ToString());
-        return false;
+        float maxVerticalDistance = INTERACTION_DISTANCE - 2.0f;
+
+        // Swimming interactions can be valid in a vertical water column when x/y is already close.
+        if (bot->isSwimming())
+            maxVerticalDistance = INTERACTION_DISTANCE + 16.0f;
+
+        if (verticalDistance > maxVerticalDistance)
+        {
+            LootDebugLog(botAI, bot,
+                         "IsLootPossible rejected: vertical distance too high for guid " + guid.ToString() +
+                             " (z=" + std::to_string(verticalDistance) +
+                             ", max=" + std::to_string(maxVerticalDistance) +
+                             ", xy=" + std::to_string(horizontalDistance2d) + ")");
+            return false;
+        }
     }
 
     Creature* creature = botAI->GetCreature(guid);
@@ -362,13 +377,13 @@ bool LootObject::IsLootPossible(Player* bot)
         }
     }
 
-    // Prevent bot from running to chests that are unlootable (e.g. Gunship Armory before completing the event) or on
-    // respawn time
+    // Keep hard rejections for despawned/non-selectable objects.
+    // GO_FLAG_INTERACT_COND can be conditionally true per player and should not be treated as a global deny.
     GameObject* go = botAI->GetGameObject(guid);
-    if (go && (go->HasFlag(GAMEOBJECT_FLAGS, GO_FLAG_INTERACT_COND | GO_FLAG_NOT_SELECTABLE) || !go->isSpawned()))
+    if (go && (!go->isSpawned() || go->HasFlag(GAMEOBJECT_FLAGS, GO_FLAG_NOT_SELECTABLE)))
     {
         LootDebugLog(botAI, bot,
-                     "IsLootPossible rejected: gameobject not interactable or not spawned, entry " +
+                     "IsLootPossible rejected: gameobject not selectable or not spawned, entry " +
                          std::to_string(go->GetEntry()) + " guid " + guid.ToString());
         return false;
     }

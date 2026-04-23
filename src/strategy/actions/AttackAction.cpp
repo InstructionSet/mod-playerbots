@@ -13,6 +13,7 @@
 #include "Playerbots.h"
 #include "ServerFacade.h"
 #include "SharedDefines.h"
+#include "TargetValue.h"
 #include "Unit.h"
 
 bool AttackAction::Execute(Event event)
@@ -143,6 +144,15 @@ bool AttackAction::Attack(Unit* target, bool with_pet /*true*/)
 
     context->GetValue<Unit*>("current target")->Set(target);
     context->GetValue<LootObjectStack*>("available loot")->Get()->Add(guid);
+
+    if (TargetingDebugHelper::IsEnabled(botAI))
+    {
+        Unit* victim = target->GetVictim();
+        LOG_DEBUG("playerbots",
+                  "[TargetDebug] {} attack target set: {} guid={} dist={:.1f} shouldMelee={} victim={} inCombat={} sameTarget={} sameAttackMode={}",
+                  bot->GetName().c_str(), target->GetName().c_str(), guid.ToString().c_str(), bot->GetDistance(target),
+                  shouldMelee, victim ? victim->GetName().c_str() : "none", inCombat, sameTarget, sameAttackMode);
+    }
 
     LastMovement& lastMovement = AI_VALUE(LastMovement&, "last movement");
     bool moveControlled = bot->GetMotionMaster()->GetMotionSlotType(MOTION_SLOT_CONTROLLED) != NULL_MOTION_TYPE;

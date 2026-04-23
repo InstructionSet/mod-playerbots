@@ -60,6 +60,15 @@ bool AttackAnythingAction::isUseful()
     return true;
 }
 
+Unit* AttackAnythingAction::GetTarget()
+{
+    Unit* pinnedTarget = context->GetValue<Unit*>("current target")->Get();
+    if (pinnedTarget && pinnedTarget->IsInWorld() && pinnedTarget->IsAlive() && bot->IsHostileTo(pinnedTarget))
+        return pinnedTarget;
+
+    return AttackAction::GetTarget();
+}
+
 bool DropTargetAction::Execute(Event event)
 {
     Unit* target = context->GetValue<Unit*>("current target")->Get();

@@ -1,5 +1,9 @@
 #include "NewRpgBaseAction.h"
 
+#include "Unit.h"
+
+#include <limits>
+
 #include "BroadcastHelper.h"
 #include "ChatHelper.h"
 #include "Creature.h"
@@ -9,6 +13,7 @@
 #include "GridTerrainData.h"
 #include "IVMapMgr.h"
 #include "NewRpgInfo.h"
+#include "NewRpgDoQuestHelpers.h"
 #include "NewRpgStrategy.h"
 #include "Object.h"
 #include "ObjectAccessor.h"
@@ -44,6 +49,17 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
     if (IsWaitingForLastMove(MovementPriority::MOVEMENT_NORMAL))
     {
         return false;
+    }
+
+    if (!bot->IsInCombat() && dest.getMapId() == bot->GetMapId())
+    {
+        GuidVector possibleTargets = AI_VALUE(GuidVector, "possible targets");
+        if (!possibleTargets.empty())
+        {
+            GoThreat const blocking = FindBlockingThreatForPathToPosition(dest.getX(), dest.getY(), possibleTargets, 10.0f);
+            if (blocking.unit)
+                return HandlePathThreatBeforeMove(blocking, possibleTargets, "MoveFarTo");
+        }
     }
 
     // stuck check
@@ -121,12 +137,38 @@ bool NewRpgBaseAction::MoveWorldObjectTo(ObjectGuid guid, float distance)
 {
     if (IsWaitingForLastMove(MovementPriority::MOVEMENT_NORMAL))
     {
+        NewRpgDoQuestHelpers::TellDoQuestDebug(
+            botAI, bot,
+            bot->GetName() + " [MoveWorldObjectTo] waiting for last move before approaching guid " + guid.ToString());
         return false;
     }
 
     WorldObject* object = botAI->GetWorldObject(guid);
     if (!object)
+    {
+        NewRpgDoQuestHelpers::TellDoQuestDebug(
+            botAI, bot,
+            bot->GetName() + " [MoveWorldObjectTo] target world object missing for guid " + guid.ToString());
         return false;
+    }
+
+    if (!bot->IsInCombat())
+    {
+        GuidVector possibleTargets = AI_VALUE(GuidVector, "possible targets");
+        if (!possibleTargets.empty())
+        {
+            GoThreat blocking;
+            if (GameObject* go = object->ToGameObject())
+                blocking = FindBlockingThreatForGoApproach(go, possibleTargets);
+            else
+                blocking = FindBlockingThreatForPathToPosition(object->GetPositionX(), object->GetPositionY(),
+                                                               possibleTargets, std::max(15.0f, distance + 5.0f));
+
+            if (blocking.unit)
+                return HandlePathThreatBeforeMove(blocking, possibleTargets, "MoveWorldObjectTo");
+        }
+    }
+    
     float x = object->GetPositionX();
     float y = object->GetPositionY();
     float z = object->GetPositionZ();
@@ -144,7 +186,7 @@ bool NewRpgBaseAction::MoveWorldObjectTo(ObjectGuid guid, float distance)
     y += sin(angle) * distance * rnd;
     if (!object->GetMap()->CheckCollisionAndGetValidCoords(object, object->GetPositionX(), object->GetPositionY(),
                                                            object->GetPositionZ(), x, y, z))
-    {
+        {
         x = object->GetPositionX();
         y = object->GetPositionY();
         z = object->GetPositionZ();
@@ -166,7 +208,7 @@ bool NewRpgBaseAction::MoveRandomNear(float moveStep, MovementPriority priority)
     const float z = bot->GetPositionZ();
     int attempts = 1;
     while (attempts--)
-    {
+        {
         float angle = (float)rand_norm() * 2 * static_cast<float>(M_PI);
         float dx = x + distance * cos(angle);
         float dy = y + distance * sin(angle);
@@ -201,6 +243,170 @@ bool NewRpgBaseAction::ForceToWait(uint32 duration, MovementPriority priority)
         .Set(bot->GetMapId(), bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ(), bot->GetOrientation(),
              duration, priority);
     return true;
+}
+
+NewRpgBaseAction::GoThreat NewRpgBaseAction::FindBlockingThreatForPathToPosition(
+    float destinationX, float destinationY, GuidVector const& possibleTargets, float destinationVicinity) const
+{
+    float const botX = bot->GetPositionX();
+    float const botY = bot->GetPositionY();
+    float const goVecX = destinationX - botX;
+    float const goVecY = destinationY - botY;
+    float const goLenSq = goVecX * goVecX + goVecY * goVecY;
+
+    float const threatRadius = sPlayerbotAIConfig->aggroDistance;
+    float const corridorWidth = std::max(4.0f, std::min(10.0f, threatRadius * 0.4f));
+    float const corridorWidthSq = corridorWidth * corridorWidth;
+    float const goVicinityDistSq = destinationVicinity * destinationVicinity;
+
+    GoThreat result;
+
+    // Pass 1: prefer threats directly on the bot->destination path corridor
+    if (goLenSq > 0.001f)
+    {
+        for (ObjectGuid const& guid : possibleTargets)
+        {
+            Unit* target = ObjectAccessor::GetUnit(*bot, guid);
+            if (!target || !target->IsAlive())
+                continue;
+
+            float const tx = target->GetPositionX() - botX;
+            float const ty = target->GetPositionY() - botY;
+            float const distBotSq = tx * tx + ty * ty;
+            float const projDot = tx * goVecX + ty * goVecY;
+            float const t = projDot / goLenSq;
+            if (t < 0.0f || t > 1.0f)
+                continue;
+
+            float const lateralSq = distBotSq - (projDot * projDot) / goLenSq;
+            if (lateralSq > corridorWidthSq)
+                continue;
+
+            if (!result.unit || distBotSq < result.distanceSq)
+            {
+                result.unit = target;
+                result.distanceSq = distBotSq;
+                result.reason = GoThreat::Reason::PathCorridor;
+            }
+        }
+    }
+
+    if (result.unit)
+        return result;
+
+    // Pass 2: fall back to threats in the destination's aggro vicinity
+    for (ObjectGuid const& guid : possibleTargets)
+    {
+        Unit* target = ObjectAccessor::GetUnit(*bot, guid);
+        if (!target || !target->IsAlive())
+            continue;
+
+        float const goDx = target->GetPositionX() - destinationX;
+        float const goDy = target->GetPositionY() - destinationY;
+        if (goDx * goDx + goDy * goDy > goVicinityDistSq)
+            continue;
+
+        float const botDx = target->GetPositionX() - botX;
+        float const botDy = target->GetPositionY() - botY;
+        float const distBotSq = botDx * botDx + botDy * botDy;
+        if (!result.unit || distBotSq < result.distanceSq)
+        {
+            result.unit = target;
+            result.distanceSq = distBotSq;
+            result.reason = GoThreat::Reason::GoVicinity;
+        }
+    }
+
+    return result;
+}
+
+NewRpgBaseAction::GoThreat NewRpgBaseAction::FindBlockingThreatForGoApproach(
+    GameObject* go, GuidVector const& possibleTargets) const
+{
+    if (!go)
+        return GoThreat();
+    return FindBlockingThreatForPathToPosition(go->GetPositionX(), go->GetPositionY(), possibleTargets, 15.0f);
+}
+
+bool NewRpgBaseAction::ShouldAvoidPathThreat(Unit* threat, GuidVector const& possibleTargets) const
+{
+    if (!threat)
+        return false;
+
+    float const hpPct = static_cast<float>(bot->GetHealthPct());
+    float const packRadius = std::max(8.0f, std::min(16.0f, sPlayerbotAIConfig->aggroDistance * 0.6f));
+    float const packRadiusSq = packRadius * packRadius;
+
+    uint32 nearbyHostileCount = 0;
+    for (ObjectGuid const& guid : possibleTargets)
+    {
+        Unit* unit = ObjectAccessor::GetUnit(*bot, guid);
+        if (!unit || !unit->IsAlive() || !bot->IsHostileTo(unit))
+            continue;
+
+        float const dx = unit->GetPositionX() - threat->GetPositionX();
+        float const dy = unit->GetPositionY() - threat->GetPositionY();
+        if (dx * dx + dy * dy <= packRadiusSq)
+            ++nearbyHostileCount;
+    }
+
+    if (nearbyHostileCount >= 3)
+        return true;
+
+    if (hpPct < 45.0f)
+        return true;
+
+    if (nearbyHostileCount >= 2 && hpPct < 75.0f)
+        return true;
+
+    return false;
+}
+
+bool NewRpgBaseAction::HandlePathThreatBeforeMove(GoThreat const& blocking, GuidVector const& possibleTargets,
+                                                  std::string const& moveLabel) const
+{
+    if (!blocking.unit || bot->IsInCombat())
+        return false;
+
+    char const* reason = (blocking.reason == GoThreat::Reason::PathCorridor) ? "path corridor" : "destination vicinity";
+
+    if (ShouldAvoidPathThreat(blocking.unit, possibleTargets))
+    {
+        context->GetValue<Unit*>("grind target")->Set(nullptr);
+        context->GetValue<Unit*>("current target")->Set(nullptr);
+
+        bool moved = false;
+        if (Action* runaway = botAI->GetAiObjectContext()->GetAction("runaway"))
+            moved = runaway->Execute(Event("new rpg path threat avoid"));
+
+        if (!moved)
+        {
+            if (Action* flee = botAI->GetAiObjectContext()->GetAction("flee"))
+                moved = flee->Execute(Event("new rpg path threat avoid"));
+        }
+
+        NewRpgDoQuestHelpers::TellDoQuestDebug(
+            botAI, bot,
+            bot->GetName() + " [" + moveLabel + "] avoiding threat entry " +
+                std::to_string(blocking.unit->GetEntry()) + " (" + reason + ", dist=" +
+                std::to_string(std::sqrt(blocking.distanceSq)) + ", hp=" +
+                std::to_string(static_cast<int32>(bot->GetHealthPct())) + ")");
+        return moved;
+    }
+
+    context->GetValue<Unit*>("grind target")->Set(blocking.unit);
+    context->GetValue<Unit*>("current target")->Set(blocking.unit);
+
+    bool engaged = false;
+    if (Action* attackAnything = botAI->GetAiObjectContext()->GetAction("attack anything"))
+        engaged = attackAnything->Execute(Event("new rpg path threat engage"));
+
+    NewRpgDoQuestHelpers::TellDoQuestDebug(
+        botAI, bot,
+        bot->GetName() + " [" + moveLabel + "] engaging threat entry " +
+            std::to_string(blocking.unit->GetEntry()) + " (" + reason + ", dist=" +
+            std::to_string(std::sqrt(blocking.distanceSq)) + ")");
+    return engaged;
 }
 
 /// @TODO: Fix redundant code
@@ -587,6 +793,53 @@ bool NewRpgBaseAction::OrganizeQuestLog()
         botAI->rpgStatistic.questDropped++;
     }
 
+    return true;
+}
+
+bool NewRpgBaseAction::TrySwitchToAnotherIncompleteQuest(uint32 currentQuestId, std::string const& reason)
+{
+    uint32 bestAltQuestId = 0;
+    float bestAltDistance = std::numeric_limits<float>::max();
+
+    for (uint8 slot = 0; slot < MAX_QUEST_LOG_SIZE; ++slot)
+    {
+        uint32 altQuestId = bot->GetQuestSlotQuestId(slot);
+        if (!altQuestId || altQuestId == currentQuestId)
+            continue;
+
+        if (botAI->lowPriorityQuest.find(altQuestId) != botAI->lowPriorityQuest.end())
+            continue;
+
+        if (bot->GetQuestStatus(altQuestId) != QUEST_STATUS_INCOMPLETE)
+            continue;
+
+        std::vector<POIInfo> altPoiInfo;
+        if (!GetQuestPOIPosAndObjectiveIdx(altQuestId, altPoiInfo))
+            continue;
+
+        for (POIInfo const& poi : altPoiInfo)
+        {
+            float distance = bot->GetDistance2d(poi.pos.x, poi.pos.y);
+            if (distance < bestAltDistance)
+            {
+                bestAltDistance = distance;
+                bestAltQuestId = altQuestId;
+            }
+        }
+    }
+
+    if (!bestAltQuestId)
+        return false;
+
+    Quest const* altQuest = sObjectMgr->GetQuestTemplate(bestAltQuestId);
+    if (!altQuest)
+        return false;
+
+    NewRpgDoQuestHelpers::TellDoQuestDebug(botAI, bot,
+                                           bot->GetName() + " quest " + std::to_string(currentQuestId) + " " +
+                                               reason + ", pivoting to quest " + std::to_string(bestAltQuestId) +
+                                               " at " + std::to_string(bestAltDistance) + " yards");
+    botAI->rpgInfo.ChangeToDoQuest(bestAltQuestId, altQuest);
     return true;
 }
 

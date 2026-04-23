@@ -259,7 +259,12 @@ public:
         creators["new rpg go camp"] = &ActionContext::new_rpg_go_camp;
         creators["new rpg wander random"] = &ActionContext::new_rpg_wander_random;
         creators["new rpg wander npc"] = &ActionContext::new_rpg_wander_npc;
-        creators["new rpg do quest"] = &ActionContext::new_rpg_do_quest;
+        creators["new rpg quest deferral"] = &ActionContext::new_rpg_quest_deferral;
+        creators["new rpg quest giver"] = &ActionContext::new_rpg_quest_giver;
+        creators["new rpg quest lifecycle"] = &ActionContext::new_rpg_quest_lifecycle;
+        creators["new rpg quest positioning"] = &ActionContext::new_rpg_quest_positioning;
+        creators["new rpg quest execution"] = &ActionContext::new_rpg_quest_execution;
+        creators["new rpg do complete quest"] = &ActionContext::new_rpg_do_complete_quest;
         creators["new rpg travel flight"] = &ActionContext::new_rpg_travel_flight;
         creators["debug loot status"] = &ActionContext::debug_loot_status;
     }
@@ -450,7 +455,12 @@ private:
     static Action* new_rpg_go_camp(PlayerbotAI* ai) { return new NewRpgGoCampAction(ai); }
     static Action* new_rpg_wander_random(PlayerbotAI* ai) { return new NewRpgWanderRandomAction(ai); }
     static Action* new_rpg_wander_npc(PlayerbotAI* ai) { return new NewRpgWanderNpcAction(ai); }
-    static Action* new_rpg_do_quest(PlayerbotAI* ai) { return new NewRpgDoQuestAction(ai); }
+    static Action* new_rpg_quest_deferral(PlayerbotAI* ai) { return new NewRpgQuestDeferralAction(ai); }
+    static Action* new_rpg_quest_giver(PlayerbotAI* ai) { return new NewRpgQuestGiverAction(ai); }
+    static Action* new_rpg_quest_lifecycle(PlayerbotAI* ai) { return new NewRpgQuestLifecycleAction(ai); }
+    static Action* new_rpg_quest_positioning(PlayerbotAI* ai) { return new NewRpgQuestPositioningAction(ai); }
+    static Action* new_rpg_quest_execution(PlayerbotAI* ai) { return new NewRpgQuestExecutionAction(ai); }
+    static Action* new_rpg_do_complete_quest(PlayerbotAI* ai) { return new NewRpgDoCompletedQuestAction(ai); }
     static Action* new_rpg_travel_flight(PlayerbotAI* ai) { return new NewRpgTravelFlightAction(ai); }
     static Action* debug_loot_status(PlayerbotAI* ai) { return new LootDebugStatusAction(ai); }
 };
