@@ -26,9 +26,6 @@ protected:
     bool EvaluateObjectivePOISelection(uint32 questId);
     bool EvaluateObjectiveTravel(uint32 questId, int32 currentObjective);
 
-    // Tier 3: Execution — GO/Creature/Item objective attempts
-    bool EvaluateGrindYieldGate(uint32 questId, int32 currentObjective, bool& stageResult);
-
     float GetObjectiveLeashDistance() const;
     bool EnforceObjectiveLeash(uint32 questId, int32 currentObjective);
     void CheckAndClearCompletedObjective(uint32 questId);
