@@ -53,7 +53,7 @@ bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
 
     if (!bot->IsInCombat() && dest.getMapId() == bot->GetMapId())
     {
-        GuidVector possibleTargets = AI_VALUE(GuidVector, "possible targets");
+        GuidVector possibleTargets = AI_VALUE(GuidVector, "possible targets no los");
         if (!possibleTargets.empty())
         {
             GoThreat const blocking = FindBlockingThreatForPathToPosition(dest.getX(), dest.getY(), possibleTargets, 10.0f);
@@ -154,7 +154,7 @@ bool NewRpgBaseAction::MoveWorldObjectTo(ObjectGuid guid, float distance)
 
     if (!bot->IsInCombat())
     {
-        GuidVector possibleTargets = AI_VALUE(GuidVector, "possible targets");
+        GuidVector possibleTargets = AI_VALUE(GuidVector, "possible targets no los");
         if (!possibleTargets.empty())
         {
             GoThreat blocking;
@@ -166,6 +166,12 @@ bool NewRpgBaseAction::MoveWorldObjectTo(ObjectGuid guid, float distance)
 
             if (blocking.unit)
                 return HandlePathThreatBeforeMove(blocking, possibleTargets, "MoveWorldObjectTo");
+        }
+        else
+        {
+            NewRpgDoQuestHelpers::TellDoQuestDebug(
+            botAI, bot,
+            bot->GetName() + " [MoveWorldObjectTo] no targets when approaching guid " + guid.ToString());
         }
     }
     
@@ -255,7 +261,7 @@ NewRpgBaseAction::GoThreat NewRpgBaseAction::FindBlockingThreatForPathToPosition
     float const goLenSq = goVecX * goVecX + goVecY * goVecY;
 
     float const threatRadius = sPlayerbotAIConfig->aggroDistance;
-    float const corridorWidth = std::max(4.0f, std::min(10.0f, threatRadius * 0.4f));
+    float const corridorWidth = std::max(4.0f, std::min(10.0f, threatRadius));
     float const corridorWidthSq = corridorWidth * corridorWidth;
     float const goVicinityDistSq = destinationVicinity * destinationVicinity;
 
@@ -292,7 +298,16 @@ NewRpgBaseAction::GoThreat NewRpgBaseAction::FindBlockingThreatForPathToPosition
     }
 
     if (result.unit)
+    {
+        NewRpgDoQuestHelpers::TellDoQuestDebug(
+            botAI, bot,
+            bot->GetName() + " [FindBlockingThreatForPathToPosition] found path corridor threat entry " +
+                std::to_string(result.unit->GetEntry()) + " (dist=" +
+                std::to_string(std::sqrt(result.distanceSq)) + ", hp=" +
+                std::to_string(static_cast<int32>(bot->GetHealthPct())) + ")");
         return result;
+    }
+        
 
     // Pass 2: fall back to threats in the destination's aggro vicinity
     for (ObjectGuid const& guid : possibleTargets)
@@ -317,6 +332,23 @@ NewRpgBaseAction::GoThreat NewRpgBaseAction::FindBlockingThreatForPathToPosition
         }
     }
 
+    if (result.unit)
+    {
+        NewRpgDoQuestHelpers::TellDoQuestDebug(
+            botAI, bot,
+            bot->GetName() + " [FindBlockingThreatForPathToPosition] found destination vicinity threat entry " +
+                std::to_string(result.unit->GetEntry()) + " (dist=" +
+                std::to_string(std::sqrt(result.distanceSq)) + ", hp=" +
+                std::to_string(static_cast<int32>(bot->GetHealthPct())) + ")");
+    }
+    else
+    {
+        NewRpgDoQuestHelpers::TellDoQuestDebug(
+            botAI, bot,
+            bot->GetName() + " [FindBlockingThreatForPathToPosition] no threats found when approaching position (" +
+                std::to_string(destinationX) + "," + std::to_string(destinationY) + ")");
+    }
+    
     return result;
 }
 
@@ -334,7 +366,7 @@ bool NewRpgBaseAction::ShouldAvoidPathThreat(Unit* threat, GuidVector const& pos
         return false;
 
     float const hpPct = static_cast<float>(bot->GetHealthPct());
-    float const packRadius = std::max(8.0f, std::min(16.0f, sPlayerbotAIConfig->aggroDistance * 0.6f));
+    float const packRadius = std::max(8.0f, std::min(10.0f, sPlayerbotAIConfig->aggroDistance));
     float const packRadiusSq = packRadius * packRadius;
 
     uint32 nearbyHostileCount = 0;
@@ -351,13 +383,34 @@ bool NewRpgBaseAction::ShouldAvoidPathThreat(Unit* threat, GuidVector const& pos
     }
 
     if (nearbyHostileCount >= 3)
+    {
+        NewRpgDoQuestHelpers::TellDoQuestDebug(
+            botAI, bot,
+            bot->GetName() + " [ShouldAvoidPathThreat] avoiding threat entry " + std::to_string(threat->GetEntry()) +
+                " due to pack of " + std::to_string(nearbyHostileCount) + " hostiles nearby (hp=" +
+                std::to_string(static_cast<int32>(hpPct)) + "%)");
         return true;
+    }
+        
 
     if (hpPct < 45.0f)
+    {
+        NewRpgDoQuestHelpers::TellDoQuestDebug(
+            botAI, bot,
+            bot->GetName() + " [ShouldAvoidPathThreat] avoiding threat entry " + std::to_string(threat->GetEntry()) +
+                " due to low hp (hp=" + std::to_string(static_cast<int32>(hpPct)) + "%)");
         return true;
+    }
+        
 
     if (nearbyHostileCount >= 2 && hpPct < 75.0f)
+    {
+        NewRpgDoQuestHelpers::TellDoQuestDebug(
+            botAI, bot,
+            bot->GetName() + " [ShouldAvoidPathThreat] avoiding threat entry " + std::to_string(threat->GetEntry()) +
+                " due to nearby hostiles and low hp (hp=" + std::to_string(static_cast<int32>(hpPct)) + "%)");
         return true;
+    }
 
     return false;
 }
@@ -375,23 +428,23 @@ bool NewRpgBaseAction::HandlePathThreatBeforeMove(GoThreat const& blocking, Guid
         context->GetValue<Unit*>("grind target")->Set(nullptr);
         context->GetValue<Unit*>("current target")->Set(nullptr);
 
-        bool moved = false;
-        if (Action* runaway = botAI->GetAiObjectContext()->GetAction("runaway"))
-            moved = runaway->Execute(Event("new rpg path threat avoid"));
+        // bool moved = false;
+        // if (Action* runaway = botAI->GetAiObjectContext()->GetAction("runaway"))
+        //     moved = runaway->Execute(Event("new rpg path threat avoid"));
 
-        if (!moved)
-        {
-            if (Action* flee = botAI->GetAiObjectContext()->GetAction("flee"))
-                moved = flee->Execute(Event("new rpg path threat avoid"));
-        }
+        // if (!moved)
+        // {
+        //     if (Action* flee = botAI->GetAiObjectContext()->GetAction("flee"))
+        //         moved = flee->Execute(Event("new rpg path threat avoid"));
+        // }
 
-        NewRpgDoQuestHelpers::TellDoQuestDebug(
-            botAI, bot,
-            bot->GetName() + " [" + moveLabel + "] avoiding threat entry " +
-                std::to_string(blocking.unit->GetEntry()) + " (" + reason + ", dist=" +
-                std::to_string(std::sqrt(blocking.distanceSq)) + ", hp=" +
-                std::to_string(static_cast<int32>(bot->GetHealthPct())) + ")");
-        return moved;
+        // NewRpgDoQuestHelpers::TellDoQuestDebug(
+        //     botAI, bot,
+        //     bot->GetName() + " [" + moveLabel + "] avoiding threat entry " +
+        //         std::to_string(blocking.unit->GetEntry()) + " (" + reason + ", dist=" +
+        //         std::to_string(std::sqrt(blocking.distanceSq)) + ", hp=" +
+        //         std::to_string(static_cast<int32>(bot->GetHealthPct())) + ")");
+        // return moved;
     }
 
     context->GetValue<Unit*>("grind target")->Set(blocking.unit);
