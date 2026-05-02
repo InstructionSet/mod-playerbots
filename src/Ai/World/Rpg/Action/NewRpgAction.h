@@ -93,6 +93,7 @@ public:
 protected:
     bool DoIncompleteQuest(NewRpgInfo::DoQuest& data);
     bool DoCompletedQuest(NewRpgInfo::DoQuest& data);
+    uint32 SelectNearestQuestObjective(std::vector<POIInfo> poiInfo);
 
     const uint32 poiStayTime = 5 * 60 * 1000;
 };

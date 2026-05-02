@@ -18,6 +18,7 @@
 #include "PathGenerator.h"
 #include "Player.h"
 #include "PlayerbotAI.h"
+#include "PlayerbotAIConfig.h"
 #include "QuestDef.h"
 #include "Random.h"
 #include "SharedDefines.h"
@@ -272,6 +273,46 @@ bool NewRpgDoQuestAction::Execute(Event /*event*/)
     return true;
 }
 
+uint32 NewRpgDoQuestAction::SelectNearestQuestObjective(std::vector<POIInfo> poiInfo)
+{
+    uint32 nearestIdx = 0;
+    float nearestDistance = std::numeric_limits<float>::max();
+    for (uint32 i = 0; i < poiInfo.size(); ++i)
+    {
+        float distance = bot->GetDistance2d(poiInfo[i].pos.x, poiInfo[i].pos.y);
+        if (distance < nearestDistance)
+        {
+            nearestDistance = distance;
+            nearestIdx = i;
+        }
+    }
+
+    float poiAvoidRadius = sPlayerbotAIConfig.lootDistance;
+    uint32 selectedIdx = nearestIdx;
+    if (poiInfo.size() > 1 && nearestDistance < poiAvoidRadius)
+    {
+        uint32 farIdx = nearestIdx;
+        float farNearestDist = std::numeric_limits<float>::max();
+        bool foundFar = false;
+        for (uint32 i = 0; i < poiInfo.size(); ++i)
+        {
+            float distance = bot->GetDistance2d(poiInfo[i].pos.x, poiInfo[i].pos.y);
+            if (distance >= poiAvoidRadius && distance < farNearestDist)
+            {
+                farNearestDist = distance;
+                farIdx = i;
+                foundFar = true;
+            }
+        }
+        if (foundFar)
+        {
+            selectedIdx = farIdx;
+        }
+    }
+    
+    return selectedIdx;
+}
+
 bool NewRpgDoQuestAction::DoIncompleteQuest(NewRpgInfo::DoQuest& data)
 {
     uint32 questId = data.questId;
@@ -311,9 +352,13 @@ bool NewRpgDoQuestAction::DoIncompleteQuest(NewRpgInfo::DoQuest& data)
             botAI->rpgInfo.ChangeToIdle();
             return true;
         }
-        uint32 rndIdx = urand(0, poiInfo.size() - 1);
-        G3D::Vector2 nearestPoi = poiInfo[rndIdx].pos;
-        int32 objectiveIdx = poiInfo[rndIdx].objectiveIdx;
+        // uint32 rndIdx = urand(0, poiInfo.size() - 1);
+        // G3D::Vector2 nearestPoi = poiInfo[rndIdx].pos;
+        // int32 objectiveIdx = poiInfo[rndIdx].objectiveIdx;
+
+        uint32 nearestIdx = SelectNearestQuestObjective(poiInfo);
+        G3D::Vector2 nearestPoi = poiInfo[nearestIdx].pos;
+        int32 objectiveIdx = poiInfo[nearestIdx].objectiveIdx;
 
         float dx = nearestPoi.x, dy = nearestPoi.y;
 
