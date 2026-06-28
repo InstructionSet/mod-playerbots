@@ -1497,6 +1497,9 @@ void PlayerbotAI::DoNextAction(bool min)
         aiObjectContext->GetValue<ObjectGuid>("pull strategy target")->Set(ObjectGuid::Empty);
         aiObjectContext->GetValue<LootObject>("loot target")->Set(LootObject());
 
+        if (auto* questData = std::get_if<NewRpgInfo::DoQuest>(&rpgInfo.data))
+            questData->lastReachPOI = 0;
+
         ChangeEngine(BOT_STATE_DEAD);
         return;
     }
