@@ -140,8 +140,8 @@ bool OpenLootAction::DoLoot(LootObject& lootObject)
         return false;
 
     // This prevents dungeon chests like Tribunal Chest (Halls of Stone) from being ninja'd by the bots
-    if (go && go->HasFlag(GAMEOBJECT_FLAGS, GO_FLAG_INTERACT_COND))
-        return false;
+    // if (go && go->HasFlag(GAMEOBJECT_FLAGS, GO_FLAG_INTERACT_COND))
+    //     return false;
 
     // This prevents raid chests like Gunship Armory (ICC) from being ninja'd by the bots
     if (go && go->HasFlag(GAMEOBJECT_FLAGS, GO_FLAG_NOT_SELECTABLE))

@@ -7,25 +7,16 @@
 
 #include "LootObjectStack.h"
 #include "Playerbots.h"
-#include "ServerFacade.h"
 
 bool LootAvailableTrigger::IsActive()
 {
-    bool distanceCheck = false;
+    // Stay strategy blocks movement, so looting is only possible if already in range.
+    // FarFromCurrentLootTrigger handles walking to loot; CanLootTrigger handles the
+    // final open check with its own distance gate, so no distance check needed here.
     if (botAI->HasStrategy("stay", BOT_STATE_NON_COMBAT))
-    {
-        distanceCheck =
-            ServerFacade::instance().IsDistanceLessOrEqualThan(AI_VALUE2(float, "distance", "loot target"), CONTACT_DISTANCE);
-    }
-    else
-    {
-        distanceCheck = ServerFacade::instance().IsDistanceLessOrEqualThan(AI_VALUE2(float, "distance", "loot target"),
-                                                                 INTERACTION_DISTANCE - 2.0f);
-    }
+        return false;
 
-    // if loot target if empty, always pass distance check
-    return AI_VALUE(bool, "has available loot") &&
-        (distanceCheck || AI_VALUE(GuidVector, "all targets").empty());
+    return AI_VALUE(bool, "has available loot");
 }
 
 bool FarFromCurrentLootTrigger::IsActive()

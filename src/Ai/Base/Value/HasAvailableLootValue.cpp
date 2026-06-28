@@ -10,6 +10,9 @@
 
 bool HasAvailableLootValue::Calculate()
 {
-    return !AI_VALUE(bool, "can loot") &&
-           AI_VALUE(LootObjectStack*, "available loot")->CanLoot(sPlayerbotAIConfig.lootDistance);
+    bool canLoot = AI_VALUE(bool, "can loot");
+    bool stackCanLoot = AI_VALUE(LootObjectStack*, "available loot")->CanLoot(sPlayerbotAIConfig.lootDistance);
+    bool result = !canLoot && stackCanLoot;
+
+    return result;
 }
