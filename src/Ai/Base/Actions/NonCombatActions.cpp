@@ -50,7 +50,7 @@ bool DrinkAction::Execute(Event event)
 bool DrinkAction::isUseful()
 {
     return UseItemAction::isUseful() && AI_VALUE2(bool, "has mana", "self target") &&
-           AI_VALUE2(uint8, "mana", "self target") < 100;
+           AI_VALUE2(uint8, "mana", "self target") < sPlayerbotAIConfig.highMana;
 }
 
 bool DrinkAction::isPossible()
@@ -100,7 +100,7 @@ bool EatAction::Execute(Event event)
     return UseItemAction::Execute(event);
 }
 
-bool EatAction::isUseful() { return UseItemAction::isUseful() && AI_VALUE2(uint8, "health", "self target") < 100; }
+bool EatAction::isUseful() { return UseItemAction::isUseful() && AI_VALUE2(uint8, "health", "self target") < sPlayerbotAIConfig.mediumHealth; }
 
 bool EatAction::isPossible()
 {
